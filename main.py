@@ -2,7 +2,9 @@ import discord
 import dotenv
 import logging
 
-from func import is_message_from_guild
+from func import is_message_from_guild, is_message_from_channel, Colours
+
+from game import Game
 
 TOKEN = dotenv.get_key('.env', 'TOKEN')
 GUILD_ID = 831251799700275231
@@ -11,37 +13,20 @@ logging.basicConfig(level=logging.INFO, filename='discord.log',
                     format='%(asctime)s %(levelname)s %(name)s %(message)s')
 
 
-class Colors:
-    DEFAULT = 0
-    AQUA = 1752220
-    GREEN = 3066993
-    BLUE = 3447003
-    PURPLE = 10181046
-    GOLD = 15844367
-    ORANGE = 15105570
-    RED = 15158332
-    GREY = 9807270
-    DARKER_GREY = 8359053
-    NAVY = 3426654
-    DARK_AQUA = 1146986
-    DARK_GREEN = 2067276
-    DARK_BLUE = 2123412
-    DARK_PURPLE = 7419530
-    DARK_GOLD = 12745742
-    DARK_ORANGE = 11027200
-    DARK_RED = 10038562
-    DARK_GREY = 9936031
-    LIGHT_GREY = 12370112
-    DARK_NAVY = 2899536
-    LUMINOUS_VIVID_PINK = 16580705
-    DARK_VIVID_PINK = 12320855
-
-
 class MafiaBotClient(discord.Client):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.lobby_n = 1
         self.guild = None
+        self.game = None
+
+    async def get_channel_by_name(self, channel_name):
+        channels = await self.guild.fetch_channels()
+        ans_channel = channels[0]  # заглушка
+        for channel in channels:
+            if channel.name == channel_name:
+                ans_channel = channel
+        return ans_channel
 
     async def create_lobby_pull(self):
         channels = await self.guild.fetch_channels()
@@ -52,7 +37,7 @@ class MafiaBotClient(discord.Client):
         embed = discord.Embed(
             title='Title',
             description='description',
-            color=Colors.DARK_VIVID_PINK
+            color=Colours.DARK_VIVID_PINK
 
         )
         message = await join_channel.send(embed=embed)
@@ -65,14 +50,24 @@ class MafiaBotClient(discord.Client):
                 f'{self.user} подключились к чату:\n'
                 f'{guild.name}(id: {guild.id}), owner: {guild.owner}')
         self.guild = self.guilds[0]
-        logging.info('Create pull')
-        await self.create_lobby_pull()
-        logging.info('Pull created')
+        # logging.info('Create pull')
+        # await self.create_lobby_pull()
+        # logging.info('Pull created')
 
     async def on_message(self, message):
-        if is_message_from_guild(message, self.guild):
+        game_channel = await self.get_channel_by_name('game')
+        if is_message_from_guild(message, self.guild) and is_message_from_channel(message, game_channel):
+            print(1)
             if message.author != self.user:
-                await message.channel.send('hi')
+                if message.content == '!создать' and self.game is None:
+                    self.game = Game(message)
+                    await self.game.launch(message)
+                else:
+                    await self.game.on_message(message)
+
+    async def on_reaction_add(self, message):
+        # этой функции в гейме пока нет
+        await self.game.on_reaction_add(message)
 
 
 # это нужно, чтобы получить доступ к пользовательской информации
