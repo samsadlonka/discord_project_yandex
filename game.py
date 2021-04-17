@@ -70,9 +70,10 @@ class Game:
         await message.channel.send(
             embed=discord.Embed(
                 title="Mafia :dagger:",
-                description="Welcome to the village of Upper Lowerstoft, it's normally quite a peaceful place but recently something *a bit sinister* has been happening when everyone's tucked up in bed...\n\nTo join the game message `{0}join`, then `{0}start` when there are at least {1} players. To leave the game at any point message `{0}leave`.".format(
-                    self.prefix, self.minPlayers
-                ),
+                description="Добро пожаловать в деревню Далёкое обычно этоо спокойное место, но в последнее время "
+                            "происходит что-то странное по ночам.\n\n""Чтобы присоединиться к игре напиши '{0}join', "
+                            "далее '{0}start', когда будет хотя бы {1} игроков.\n\n"
+                            "Чтобы покинуть игру напиши '{0}leave'.".format(self.prefix, self.minPlayers),
                 colour=Colours.DARK_RED,
             )
         )
@@ -95,29 +96,29 @@ class Game:
                 else:
                     try:
                         embed = discord.Embed(
-                            description="Welcome to Upper Lowerstoft, we hope you have a peaceful visit.\n\nDuring the game I will send you messages here, if you need to leave at any point message `{}leave` in the game channel.".format(
-                                self.prefix
-                            ),
+                            description="Добро пожаловать в деревню Далёкую, надеемся, что это место вам понравится\n\n"
+                                        "Во время игры я буду отправлять тебе сообщения здесь, если ты хочешь покинуть "
+                                        "игру напиши '{}leave'в чат игры.".format(self.prefix),
                             colour=Colours.DARK_BLUE,
                         )
                         await message.author.send(embed=embed)
 
                         self.players.append(message.author)
                         if len(self.players) < self.minPlayers:
-                            l = "{} players of {} needed".format(
+                            l = "{} игроков из {}".format(
                                 len(self.players), self.minPlayers
                             )
                         else:
-                            l = "{} players of maximum {}".format(
+                            l = "{} игроков из максимальных{}".format(
                                 len(self.players), self.maxPlayers
                             )
                         await message.channel.send(
-                            "{} joined the game ({})".format(message.author.mention, l)
+                            "{} присоединился ({})".format(message.author.mention, l)
                         )
 
                     except discord.errors.Forbidden:
                         await self.channel.send(
-                            "{0.mention} you have your DMs turned off - the game doesn't work if I can't send you messages :cry:".format(
+                            "{0.mention} у вас отключены личные сообщения, поэтому я не могу писать вам".format(
                                 message.author
                             )
                         )
@@ -125,7 +126,7 @@ class Game:
             elif command == "leave" and message.channel == self.channel:
                 if message.author in self.players:
                     await self.channel.send(
-                        "{} left the game".format(message.author.mention)
+                        "{} покинул игру".format(message.author.mention)
                     )
 
                     if self.state in [State.ROUNDSLEEP, State.ROUNDPURGE]:
@@ -146,7 +147,7 @@ class Game:
                 if message.author in self.players and message.channel == self.channel:
                     if len(self.players) < self.minPlayers:
                         await self.channel.send(
-                            "There aren't enough players ({} of {} needed)".format(
+                            "Недостаточно игроков - ({} из необходимых {})".format(
                                 len(self.players), self.minPlayers
                             )
                         )
@@ -172,14 +173,14 @@ class Game:
                     if not message.author.id in self.mafiaChoose and id:
                         if (id < 1) or (id > len(self.players)):
                             await message.channel.send(
-                                "{} - that isn't a valid choice".format(
+                                "Не понял твой выбор - {}".format(
                                     message.author.mention
                                 )
                             )
                         else:
                             self.mafiaChoose[message.author.id] = id
                             await message.channel.send(
-                                "{} - choice submitted".format(message.author.mention)
+                                "Выбор принят - {}".format(message.author.mention)
                             )
 
                             if len(self.mafiaChoose) == len(self.mafia):
@@ -189,13 +190,13 @@ class Game:
                                 if count >= (math.floor(len(self.mafia) / 2) + 1):
                                     self.roundKill = self.players[chosen - 1]
                                     await message.channel.send(
-                                        "{} has been marked for death".format(
+                                        "{} будет убит".format(
                                             self.roundKill.display_name
                                         )
                                     )
                                 else:
                                     await message.channel.send(
-                                        "You couldn't come to an agreement, nobody will be killed this round"
+                                        "Вы не пришли к единому мнению, поэтому никого не убьют в эту ночь."
                                     )
                                     self.roundKillSkip = True
 
@@ -207,17 +208,17 @@ class Game:
                         if save != self.lastRoundSave:
                             self.roundSave = save
                             await message.channel.send(
-                                "Choice submitted - {} will be saved".format(
+                                "Выбор защитан - {} будет вылечен".format(
                                     self.roundSave.display_name
                                 )
                             )
 
                         else:
                             await message.channel.send(
-                                "You can't save the person two nights running!"
+                                "Нельзя выбирать одного и того же человека 2 ночи подряд!"
                             )
                     else:
-                        await message.channel.send("That isn't a valid choice!")
+                        await message.channel.send("Это не корректный выбор!")
 
                 elif message.author == self.detective and isDM(message):
                     id = IDFromArg(args)
@@ -225,12 +226,12 @@ class Game:
                     if id and ((id > 0) and (id <= len(self.players))):
                         self.roundDetect = self.players[id - 1]
                         await message.channel.send(
-                            "Choice submitted - {} will be investigated".format(
+                            "Выбор защитан - {} будет проверен".format(
                                 self.roundDetect.display_name
                             )
                         )
                     else:
-                        await message.channel.send("That isn't a valid choice!")
+                        await message.channel.send("Это некорректный выбор!")
 
                 await self.testRoundContinue()
 
@@ -255,13 +256,13 @@ class Game:
 
                         else:
                             await self.channel.send(
-                                "{0.mention} isn't in the game!".format(
+                                "{0.mention} не в игре!".format(
                                     message.mentions[0]
                                 )
                             )
                     else:
                         await self.channel.send(
-                            "{0.mention} that wasn't a valid choice".format(
+                            "{0.mention} - это некорректный выбор".format(
                                 message.author
                             )
                         )
@@ -292,38 +293,32 @@ class Game:
                     if len(self.players) < self.minPlayers:
                         await self.channel.send(
                             embed=discord.Embed(
-                                description="I'm waiting for more players to join, use `{0}join` if you want to play".format(
-                                    self.prefix
-                                ),
-                                colour=Colours.BLUE,
-                            )
+                                description="Я жду недостающих игроков, напишите `{0}join`, чтобы "
+                                            "прсоединиться к игре".format(self.prefix), colour=Colours.BLUE,)
                         )
 
                     else:
                         await self.channel.send(
                             embed=discord.Embed(
-                                description="I'm waiting for someone to start the game, use `{0}start` when you're ready to begin".format(
-                                    self.prefix
-                                ),
-                                colour=Colours.BLUE,
-                            )
+                                description="Я жду пока кто-нибудь начнет игру, напишите `{0}start`, когда будете "
+                                            "готовы начать ".format(self.prefix),colour=Colours.BLUE,)
                         )
 
                 elif self.state == State.ROUNDSLEEP:
                     waiting = []
 
                     if not (self.roundKill or self.roundKillSkip):
-                        waiting.append("the Mafia")
+                        waiting.append("Мафия")
 
                     if self.doctor and not self.roundSave:
-                        waiting.append("the doctor")
+                        waiting.append("Врач")
 
                     if self.detective and not self.roundDetect:
-                        waiting.append("the detective")
+                        waiting.append("Детектив")
 
                     await self.channel.send(
                         embed=discord.Embed(
-                            description="I'm waiting for the following to make their choices: {}".format(
+                            description="Я жду пока сделают свой выбор: {}".format(
                                 ", ".join(waiting)
                             ),
                             colour=Colours.BLUE,
@@ -339,11 +334,11 @@ class Game:
                             if p.id not in self.roundPurge
                         ]
                     )
-                    plural = "players" if remaining > 1 else "player"
+                    plural = "игроков" if remaining > 1 else "игрок"
 
                     await self.channel.send(
                         embed=discord.Embed(
-                            description="I'm waiting for the village to discuss - {0} {1} left to make a decision ({2})".format(
+                            description="Ещё не проголосовали - {0} {1}, а именно ({2})".format(
                                 remaining, plural, players
                             ),
                             colour=Colours.BLUE,
@@ -353,7 +348,7 @@ class Game:
                 elif self.state == State.END:
                     await self.channel.send(
                         embed=discord.Embed(
-                            description="The game has ended, use `{0}restart` for a new game".format(
+                            description="Игра была завершена, напиши `{0}restart` для запуска новой игры".format(
                                 self.prefix
                             ),
                             colour=Colours.BLUE,
@@ -366,11 +361,10 @@ class Game:
                 State.ROUNDPURGE,
             ]:
                 if len(self.players) > 0:
-                    are = "are" if len(self.players) > 1 else "is"
                     players = " ".join(["{0.mention}".format(m) for m in self.players])
                     await self.channel.send(
                         embed=discord.Embed(
-                            description="{} {} in the game".format(players, are),
+                            description="{} в игре".format(players),
                             color=Colours.DARK_BLUE,
                         )
                     )
@@ -378,7 +372,7 @@ class Game:
                 else:
                     await self.channel.send(
                         embed=discord.Embed(
-                            description="Nobody is in the game yet",
+                            description="Ещё никого нет в игре",
                             color=Colours.DARK_BLUE,
                         )
                     )
@@ -442,8 +436,8 @@ class Game:
 
             except discord.errors.Forbidden:
                 await self.channel.send(
-                    ":exploding_head: I can't continue because I don't have permission to create text channels in this channel category - did you remove the permission?"
-                )
+                    "Я не могу продолжить, потому что у меня нет разрешения на создание текстовых каналов в этой "
+                    "категории каналов - вы удалили разрешение?")
                 await self.endGame()
                 return False
 
@@ -472,32 +466,32 @@ class Game:
         )
 
     async def kill(self, player, purge=False):
-        method = "purged" if purge else "killed"
+        method = "выбран" if purge else "убит"
 
         if player in self.mafia:
-            role = "in the **mafia**"
+            role = "мафия"
             await self.removeFromMafia(player)
 
         elif player == self.doctor:
-            role = "the **doctor**"
+            role = "врач"
             self.doctor = None
             self.villagers.remove(player)
 
         elif player == self.detective:
-            role = "the **detective**"
+            role = "детектив"
             self.detective = None
             self.villagers.remove(player)
 
         elif player in self.villagers:
-            role = "a **villager**"
+            role = "мирный житель"
             self.villagers.remove(player)
 
         else:
             return
 
         embed = discord.Embed(
-            title="{} has been {}!".format(player.display_name, method),
-            description="They were {}".format(role),
+            title="{} был {}!".format(player.display_name, method),
+            description="Это был {}".format(role),
             colour=Colours.DARK_RED,
         )
         await self.channel.send(embed=embed)
@@ -533,16 +527,16 @@ class Game:
         if win == Win.VILLAGERS:
             winners = " ".join(["{0.mention}".format(m) for m in self.villagers])
             embed = discord.Embed(
-                description="The villagers ({}) have won!\n\nMessage `{}restart` to play again".format(
-                    winners, self.prefix
-                ),
+                description="Мирные жители ({}) победили!\n\n"
+                            "Напишите `{}restart`, чтобы сыграть снова".format(winners, self.prefix),
                 colour=Colours.DARK_GREEN,
             )
 
         elif win == Win.MAFIA:
             winners = " ".join(["{0.mention}".format(m) for m in self.mafia])
             embed = discord.Embed(
-                description="The Mafia ({}) have won!\n\nMessage `{}restart` to play again".format(
+                description="Мафия ({}) победила!\n\n"
+                            "Message `{}restart` to play again".format(
                     winners, self.prefix
                 ),
                 colour=Colours.DARK_RED,
@@ -550,9 +544,8 @@ class Game:
 
         else:
             embed = discord.Embed(
-                description="The game has had to end for some reason :cry:\n\nMessage `{}restart` to start a new game".format(
-                    self.prefix
-                ),
+                description="Игра прервалась из-за некоторых проблем\n\n"
+                            "Напишите `{}restart`, чтобы начать новую игру".format(self.prefix),
                 colour=Colours.BLUE,
             )
 
@@ -567,8 +560,8 @@ class Game:
     # Round Flow
     async def startRound(self):
         embed = discord.Embed(
-            title="Round {}".format(self.round),
-            description="As the sun sets, the villagers head to bed for an uneasy nights sleep",  # make list of these to work through as a story
+            title="Ночь {}".format(self.round),
+            description="Наступает ночь, мирные жители засыпают",  # make list of these to work through as a story
             colour=Colours.PURPLE,
         )
         await self.channel.send(embed=embed)
@@ -578,7 +571,7 @@ class Game:
     async def sendIntros(self):
         mafia = "".join(["{0.mention} ".format(m) for m in self.mafia])
         await self.mafiaChannel.send(
-            "{} - you are the mafia, each night you get to mark one villager for death!".format(
+            "{} - вы мафия каждую ночь вы будете выбирать новую жертву!".format(
                 mafia
             )
         )
@@ -586,33 +579,32 @@ class Game:
         for v in self.villagers:
             if v in self.mafia:
                 await v.send(
-                    "You're in the mafia, each night you get to mark one villager for death! Look for `#the-mafia` channel to make your choice."
-                )
+                    "Вы мафия и  каждую ночь вы будете выбирать новую жертву. Зайдите в канал "
+                    "`#the-mafia`, чтобы сделать свой выбор.")
             elif v == self.doctor:
                 await v.send(
-                    "You're the doctor, each night you get to pick one villager to save - you can't save the same person two nights in a row"
-                )
+                    "Вы врач каждую ночь вы будете выбирать одного жителя, которого хотите вылечить. "
+                    "Нельзя лечить одного и того же человека две ночи подряд.")
 
             elif v == self.detective:
                 await v.send(
-                    "You're the detective, each night you get to pick one villager to investigate and find out if they're in the mafia"
-                )
+                    "Вы детектив и каждую ночь вы будете выбирать одного жителя и искать срези них мафию")
 
             else:
                 await v.send(
-                    "You're a villager, keep your wits about you there are mafia on the loose!"
-                )
+                    "Вы - мирный житель, сосредоточьтесь, чтобы найти мафию.")
 
     async def sendPrompts(self):
-        mafiaPrompt = "Each reply with `{0}choose number` (e.g. `{0}choose 1`) to choose the player you wish to mark for death - you need to come to an agreement as a group, if there's no clear choice then nobody will be marked, so you may want to discuss your choice first!".format(
+        mafiaPrompt = "Напишите '{0}choose number' (например, '{0}choose number 1'), чтобы выбрать игрока, \n\n" \
+                      "которого вы хотите убить - вам нужно прийти к соглашению всей группой, если нет четкого выбора,"\
+                      "никто не будет убит, поэтому  вы можете сначала обсудить свой выбор!".format(
             self.prefix
         )
-        doctorPrompt = "Reply with `{0}choose number` (e.g. `{0}choose 1`) to choose the player you wish to save".format(
+        doctorPrompt = "Напишите`{0}choose number` (например `{0}choose 1`), чтобы выбрать игрока для излечения".format(
             self.prefix
         )
-        detectivePrompt = "Reply with `{0}choose number` (e.g. `{0}choose 1`) to choose the player you wish to investigate".format(
-            self.prefix
-        )
+        detectivePrompt = "Напишите `{0}choose number` (например `{0}choose 1`), чтобы выбрать игрока " \
+                          "для проверки".format(self.prefix)
 
         embed = self.makePlayerListEmbed()
         await self.mafiaChannel.send(mafiaPrompt, embed=embed)
@@ -634,15 +626,15 @@ class Game:
 
     async def summariseRound(self):
         summary = discord.Embed(
-            title="Wakey wakey",
-            description="As the village wakes, it's inhabitants cautiously step outside to find out what happened during the night...",
+            title="Просыпаемся",
+            description="Теперь, когда жители проснулись узнаем, что же случилось этой ночью",
             colour=Colours.PURPLE,
         )
 
         if self.roundKillSkip:
             summary.add_field(
                 name=":person_shrugging:",
-                value="The Mafia didn't choose anybody to kill this time around",
+                value="Мафия никого не выбрала",
                 inline=False,
             )
             kill = False
@@ -650,14 +642,14 @@ class Game:
         elif self.roundKill:
             summary.add_field(
                 name=":dagger:",
-                value="The Mafia chose to kill {}".format(self.roundKill.mention),
+                value="Мафия выбрала убить {}".format(self.roundKill.mention),
                 inline=False,
             )
 
             if self.roundSave == self.roundKill:
                 summary.add_field(
                     name=":syringe:",
-                    value="The doctor managed to save them in time!",
+                    value="Врая вылечил игрока вовремя!",
                     inline=False,
                 )
                 kill = False
@@ -665,7 +657,7 @@ class Game:
             elif self.doctor:
                 summary.add_field(
                     name=":skull_crossbones:",
-                    value="The doctor was unable to save them",
+                    value="Врая не смог вылечить его",
                     inline=False,
                 )
                 kill = True
@@ -678,12 +670,12 @@ class Game:
             if self.roundDetect in self.mafia:
                 summary.add_field(
                     name=":detective:",
-                    value="The detective found a member of the mafia",
+                    value="Детектив нашёл мафию",
                     inline=False,
                 )
                 await self.detective.send(
                     embed=discord.Embed(
-                        description="Correct - {} is in the mafia!".format(
+                        description="Верно {} - это мафия !".format(
                             self.roundDetect.display_name
                         ),
                         colour=Colours.DARK_RED,
@@ -692,12 +684,12 @@ class Game:
             else:
                 summary.add_field(
                     name=":detective:",
-                    value="The detective didn't find a member of the mafia",
+                    value="Детектив не нашёл мафию",
                     inline=False,
                 )
                 await self.detective.send(
                     embed=discord.Embed(
-                        description="Incorrect - {} is not in the mafia!".format(
+                        description="Неверно {} не является мафией!".format(
                             self.roundDetect.display_name
                         ),
                         colour=Colours.DARK_GREEN,
@@ -720,20 +712,23 @@ class Game:
         self.state = State.ROUNDPURGE
 
         if self.roundKillSkip:
-            text = "Although the Mafia didn't strike last night, the villagers are still on edge and a village meeting is called..."
+            text = "Хотя мафия никого не убила прошлой ночью, жители деревни все еще находятся в напряжении, и " \
+                   "собираются для обсуждения ..."
 
         elif self.roundKill == self.roundSave:
-            text = "Tensions are running high after last nights attempted murder, the villagers gather to discuss..."
+            text = "Напряжение накаляется после попытки убийства прошлой ночью, жители деревни собираются, " \
+                   "чтобы обсудить ...."
 
         else:
-            text = "Horrified at last nights murder, the villagers gather to discuss..."
+            text = "В ужасе от убийства прошлой ночи, жители деревни собираются, чтобы обсудить ..."
 
         left = " ".join(["{0.mention}".format(m) for m in self.players])
 
         embed = discord.Embed(
-            description="{0}\n\nIf you're suspicious of a player mention them using `{2}accuse` to accuse them of being in the Mafia, or use `{2}skip` to stay quiet. At least half the village must accuse someone for them to be purged.\n\n{1} are still in the game".format(
-                text, left, self.prefix
-            ),
+            description="{0}\n\nЕсли вы подозрительно относитесь к игроку, упомяните его, используя '{2} acccuse',\n\n "
+                        "чтобы обвинить его в принадлежности к мафии, или используйте '{2} skip', чтобы молчать. \n\n"
+                        "По крайней мере, половина жителей должна кого-то обвинить, чтобы их проверили.\n\n{1} "
+                        "всё ещё в игре".format(text, left, self.prefix),
             colour=Colours.DARK_ORANGE,
         )
 
@@ -744,7 +739,7 @@ class Game:
         if chosen != False and count >= (math.ceil(len(self.players) / 2)):
             await self.channel.send(
                 embed=discord.Embed(
-                    description="The village has agreed that {} should be purged".format(
+                    description="Жители решили, что {} должен быть проверен".format(
                         chosen.display_name
                     ),
                     colour=Colours.DARK_RED,
@@ -762,7 +757,7 @@ class Game:
         else:
             await self.channel.send(
                 embed=discord.Embed(
-                    description="The village couldn't come to an agreement, nobody is purged today",
+                    description="Жители не пришли к согласию, сегодня никто не будет проверен",
                     colour=Colours.DARK_GREEN,
                 )
             )
