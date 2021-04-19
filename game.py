@@ -24,7 +24,6 @@ class Win(Enum):
 
 
 class Game:
-
     lock = None
     bot = None
     guild = None
@@ -41,6 +40,7 @@ class Game:
         self.channel = message.channel
 
         self.prefix = '!'
+        self.start_message_id = None
 
         random.seed()
 
@@ -67,7 +67,7 @@ class Game:
         await self.removeMafiaChannel()
 
     async def launch(self, message):
-        await message.channel.send(
+        mess = await message.channel.send(
             embed=discord.Embed(
                 title="Mafia :dagger:",
                 description="Welcome to the village of Upper Lowerstoft, it's normally quite a peaceful place but recently something *a bit sinister* has been happening when everyone's tucked up in bed...\n\nTo join the game message `{0}join`, then `{0}start` when there are at least {1} players. To leave the game at any point message `{0}leave`.".format(
@@ -76,6 +76,66 @@ class Game:
                 colour=Colours.DARK_RED,
             )
         )
+        self.start_message_id = mess.id
+        await mess.add_reaction('✅')
+
+    async def on_reaction_add(self, reaction, user):
+        if reaction.message.id == self.start_message_id and self.state == State.START:
+            await self.join_in_game(user)
+
+    async def on_reaction_remove(self, reaction, user):
+        if reaction.message.id == self.start_message_id:
+            await self.leave_game(user)
+
+    async def join_in_game(self, user):
+        if self.hasUser(user.id):
+            await self.channel.send("You're already in the game!")
+
+        else:
+            try:
+                embed = discord.Embed(
+                    description="Welcome to Upper Lowerstoft, we hope you have a peaceful visit.\n\nDuring the game I will send you messages here, if you need to leave at any point message `{}leave` in the game channel.".format(
+                        self.prefix
+                    ),
+                    colour=Colours.DARK_BLUE,
+                )
+                await user.send(embed=embed)
+
+                self.players.append(user)
+                if len(self.players) < self.minPlayers:
+                    l = "{} players of {} needed".format(
+                        len(self.players), self.minPlayers
+                    )
+                else:
+                    l = "{} players of maximum {}".format(
+                        len(self.players), self.maxPlayers
+                    )
+                await self.channel.send(
+                    "{} joined the game ({})".format(user.mention, l)
+                )
+
+            except discord.errors.Forbidden:
+                await self.channel.send(
+                    "{0.mention} you have your DMs turned off - the game doesn't work if I can't send you messages :cry:".format(
+                        user
+                    )
+                )
+
+    async def leave_game(self, user):
+        if user in self.players:
+            await self.channel.send(
+                "{} left the game".format(user.mention)
+            )
+
+            if self.state in [State.ROUNDSLEEP, State.ROUNDPURGE]:
+                await self.kill(user)
+                win = self.checkWinConditions()
+
+                if win:
+                    self.endGame(win)
+
+            else:
+                self.players.remove(user)
 
     async def on_message(self, message):
         async with self.lock:
@@ -83,15 +143,13 @@ class Game:
             command, args = parseMessage(message, self.prefix)
 
             if (
-                command == "join"
-                and message.channel == self.channel
-                and self.state == State.START
+                    command == "join"
+                    and message.channel == self.channel
+                    and self.state == State.START
             ):
                 if self.hasUser(message.author.id):
                     await message.channel.send("You're already in the game!")
-                # delete this shit
-                # elif userInActiveGame(message.author.id, self.bot.active):
-                #     await message.channel.send("You're already in a game elsewhere!")
+
                 else:
                     try:
                         embed = discord.Embed(
@@ -139,9 +197,9 @@ class Game:
                         self.players.remove(message.author)
 
             elif (
-                command == "start"
-                and message.channel == self.channel
-                and self.state == State.START
+                    command == "start"
+                    and message.channel == self.channel
+                    and self.state == State.START
             ):
                 if message.author in self.players and message.channel == self.channel:
                     if len(self.players) < self.minPlayers:
@@ -164,8 +222,8 @@ class Game:
                             return False
 
                 if (
-                    message.author in self.mafia
-                    and message.channel == self.mafiaChannel
+                        message.author in self.mafia
+                        and message.channel == self.mafiaChannel
                 ):
                     id = IDFromArg(args)
 
@@ -235,9 +293,9 @@ class Game:
                 await self.testRoundContinue()
 
             elif (
-                command == "accuse"
-                and message.channel == self.channel
-                and self.state == State.ROUNDPURGE
+                    command == "accuse"
+                    and message.channel == self.channel
+                    and self.state == State.ROUNDPURGE
             ):
                 if message.author in self.players:
                     if message.mentions and (len(message.mentions) == 1):
@@ -267,9 +325,9 @@ class Game:
                         )
 
             elif (
-                command == "skip"
-                and message.channel == self.channel
-                and self.state == State.ROUNDPURGE
+                    command == "skip"
+                    and message.channel == self.channel
+                    and self.state == State.ROUNDPURGE
             ):
                 if message.author in self.players:
                     self.roundPurge[message.author.id] = False
@@ -568,7 +626,8 @@ class Game:
     async def startRound(self):
         embed = discord.Embed(
             title="Round {}".format(self.round),
-            description="As the sun sets, the villagers head to bed for an uneasy nights sleep",  # make list of these to work through as a story
+            description="As the sun sets, the villagers head to bed for an uneasy nights sleep",
+            # make list of these to work through as a story
             colour=Colours.PURPLE,
         )
         await self.channel.send(embed=embed)
@@ -625,10 +684,10 @@ class Game:
 
     async def testRoundContinue(self):
         if (
-            (self.state == State.ROUNDSLEEP)
-            and (self.roundKill or self.roundKillSkip)
-            and (not self.doctor or self.roundSave)
-            and (not self.detective or self.roundDetect)
+                (self.state == State.ROUNDSLEEP)
+                and (self.roundKill or self.roundKillSkip)
+                and (not self.doctor or self.roundSave)
+                and (not self.detective or self.roundDetect)
         ):
             await self.summariseRound()
 

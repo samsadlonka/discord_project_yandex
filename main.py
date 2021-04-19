@@ -57,17 +57,28 @@ class MafiaBotClient(discord.Client):
     async def on_message(self, message):
         game_channel = await self.get_channel_by_name('game')
         if is_message_from_guild(message, self.guild) and is_message_from_channel(message, game_channel):
-            print(1)
             if message.author != self.user:
                 if message.content == '!создать' and self.game is None:
                     self.game = Game(message)
+                    await message.channel.send('Игра создана! Чтобы удалить игру, используйте команду !удалить')
                     await self.game.launch(message)
-                else:
+                elif message.content == '!удалить' and self.game:
+                    self.game = None
+                    await message.channel.send('Игра успешна удалена!')
+                elif self.game:
                     await self.game.on_message(message)
+                else:
+                    await message.channel.send('Для начала нужно создать игру командой !создать')
 
-    async def on_reaction_add(self, message):
+    async def on_reaction_add(self, user, reaction):
         # этой функции в гейме пока нет
-        await self.game.on_reaction_add(message)
+        if self.game:
+            await self.game.on_reaction_add(user, reaction)
+        else:
+            await reaction.message.channel.send('Какая-то странная ситуация')
+
+    async def on_reaction_remove(self, user, reaction):
+        await self.game.on_reaction_remove(user, reaction)
 
 
 # это нужно, чтобы получить доступ к пользовательской информации
