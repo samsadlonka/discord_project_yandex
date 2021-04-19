@@ -35,12 +35,16 @@ class Game:
     # Game Object Methods
     def __init__(self, message):
         self.lock = asyncio.Lock()
+        self.maxPlayers = 13
 
         self.guild = message.guild
         self.channel = message.channel
 
         self.prefix = '!'
         self.start_message_id = None
+        self.vote_message_id = None
+        self.emoji = '0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟 🅰️ 🅱️'.split(' ')
+        self.dict_vote = {}
 
         random.seed()
 
@@ -83,6 +87,8 @@ class Game:
     async def on_reaction_add(self, reaction, user):
         if reaction.message.id == self.start_message_id and self.state == State.START:
             await self.join_in_game(user)
+        elif reaction.message.id == self.vote_message_id and self.state == State.ROUNDPURGE:
+            await self.vote_in_purge(user, reaction)
 
     async def on_reaction_remove(self, reaction, user):
         if reaction.message.id == self.start_message_id:
@@ -90,34 +96,34 @@ class Game:
 
     async def join_in_game(self, user):
         if self.hasUser(user.id):
-            await self.channel.send("You're already in the game!")
+            await self.channel.send("Вы уже в игре!")
 
         else:
             try:
                 embed = discord.Embed(
-                    description="Welcome to Upper Lowerstoft, we hope you have a peaceful visit.\n\nDuring the game I will send you messages here, if you need to leave at any point message `{}leave` in the game channel.".format(
-                        self.prefix
-                    ),
+                    description="Добро пожаловать в деревню Далёкую, надеемся, что это место вам понравится\n\n"
+                                "Во время игры я буду отправлять тебе сообщения здесь, если ты хочешь покинуть "
+                                "игру напиши '{}leave'в чат игры..".format(self.prefix),
                     colour=Colours.DARK_BLUE,
                 )
                 await user.send(embed=embed)
 
                 self.players.append(user)
                 if len(self.players) < self.minPlayers:
-                    l = "{} players of {} needed".format(
+                    l = "{} игроков из {}".format(
                         len(self.players), self.minPlayers
                     )
                 else:
-                    l = "{} players of maximum {}".format(
+                    l = "{} игроков из максимальных{}".format(
                         len(self.players), self.maxPlayers
                     )
                 await self.channel.send(
-                    "{} joined the game ({})".format(user.mention, l)
+                    "{} присоединился ({})".format(user.mention, l)
                 )
 
             except discord.errors.Forbidden:
                 await self.channel.send(
-                    "{0.mention} you have your DMs turned off - the game doesn't work if I can't send you messages :cry:".format(
+                    "{0.mention} у вас отключены личные сообщения, поэтому я не могу писать вам :cry:".format(
                         user
                     )
                 )
@@ -125,7 +131,7 @@ class Game:
     async def leave_game(self, user):
         if user in self.players:
             await self.channel.send(
-                "{} left the game".format(user.mention)
+                "{} покинул игру".format(user.mention)
             )
 
             if self.state in [State.ROUNDSLEEP, State.ROUNDPURGE]:
@@ -133,10 +139,23 @@ class Game:
                 win = self.checkWinConditions()
 
                 if win:
-                    self.endGame(win)
+                    await self.endGame(win)
 
             else:
                 self.players.remove(user)
+
+    async def vote_in_purge(self, user, reaction):
+        if user in self.players:
+            self.roundPurge[user.id] = self.dict_vote[reaction.emoji]
+            left = len(self.players) - len(self.roundPurge)
+            await self.channel.send(
+                "{0.mention} проголосовал за {1.display_name} - {2} left to decide".format(
+                    user, self.dict_vote[reaction.emoji], left
+                )
+            )
+
+            if len(self.roundPurge) == len(self.players):
+                await self.purge()
 
     async def on_message(self, message):
         async with self.lock:
@@ -194,7 +213,7 @@ class Game:
                         win = self.checkWinConditions()
 
                         if win:
-                            self.endGame(win)
+                            await self.endGame(win)
 
                     else:
                         self.players.remove(message.author)
@@ -205,18 +224,17 @@ class Game:
                     and self.state == State.START
             ):
                 if message.author in self.players and message.channel == self.channel:
-                    if len(self.players) < self.minPlayers:
-                        await self.channel.send(
-                            "Недостаточно игроков - ({} из необходимых {})".format(
-                                len(self.players), self.minPlayers
-                            )
-                        )
-
-                    else:
-                        await self.startGame()
+                    # if len(self.players) < self.minPlayers:
+                    #     await self.channel.send(
+                    #         "Недостаточно игроков - ({} из необходимых {})".format(
+                    #             len(self.players), self.minPlayers
+                    #         )
+                    #     )
+                    #
+                    # else:
+                    await self.startGame()
 
             elif command == "choose" and self.state == State.ROUNDSLEEP:
-
                 def IDFromArg(args):
                     if len(args) > 1:
                         try:
@@ -354,14 +372,14 @@ class Game:
                         await self.channel.send(
                             embed=discord.Embed(
                                 description="Я жду недостающих игроков, напишите `{0}join`, чтобы "
-                                            "прсоединиться к игре".format(self.prefix), colour=Colours.BLUE,)
+                                            "прсоединиться к игре".format(self.prefix), colour=Colours.BLUE, )
                         )
 
                     else:
                         await self.channel.send(
                             embed=discord.Embed(
                                 description="Я жду пока кто-нибудь начнет игру, напишите `{0}start`, когда будете "
-                                            "готовы начать ".format(self.prefix),colour=Colours.BLUE,)
+                                            "готовы начать ".format(self.prefix), colour=Colours.BLUE, )
                         )
 
                 elif self.state == State.ROUNDSLEEP:
@@ -558,7 +576,11 @@ class Game:
 
         self.players.remove(player)
 
-        await self.testRoundContinue()
+        win = await self.checkWinConditions()
+        if win:
+            await self.endGame()
+        else:
+            await self.testRoundContinue()
 
     # Game Flow
     async def startGame(self):
@@ -583,6 +605,7 @@ class Game:
 
     async def endGame(self, win=False):
         self.state = State.END
+        print(1)
 
         if win == Win.VILLAGERS:
             winners = " ".join(["{0.mention}".format(m) for m in self.villagers])
@@ -656,7 +679,7 @@ class Game:
 
     async def sendPrompts(self):
         mafiaPrompt = "Напишите '{0}choose number' (например, '{0}choose number 1'), чтобы выбрать игрока, \n\n" \
-                      "которого вы хотите убить - вам нужно прийти к соглашению всей группой, если нет четкого выбора,"\
+                      "которого вы хотите убить - вам нужно прийти к соглашению всей группой, если нет четкого выбора," \
                       "никто не будет убит, поэтому  вы можете сначала обсудить свой выбор!".format(
             self.prefix
         )
@@ -682,6 +705,7 @@ class Game:
                 and (not self.doctor or self.roundSave)
                 and (not self.detective or self.roundDetect)
         ):
+            print('test round')
             await self.summariseRound()
 
     async def summariseRound(self):
@@ -709,7 +733,7 @@ class Game:
             if self.roundSave == self.roundKill:
                 summary.add_field(
                     name=":syringe:",
-                    value="Врая вылечил игрока вовремя!",
+                    value="Врач вылечил игрока вовремя!",
                     inline=False,
                 )
                 kill = False
@@ -717,7 +741,7 @@ class Game:
             elif self.doctor:
                 summary.add_field(
                     name=":skull_crossbones:",
-                    value="Врая не смог вылечить его",
+                    value="Врач не смог вылечить его",
                     inline=False,
                 )
                 kill = True
@@ -762,7 +786,7 @@ class Game:
             await self.kill(self.roundKill)
             win = self.checkWinConditions()
 
-            if win:
+            if win and self.state != State.END:
                 await self.endGame(win)
 
         if self.state != State.END:
@@ -782,17 +806,21 @@ class Game:
         else:
             text = "В ужасе от убийства прошлой ночи, жители деревни собираются, чтобы обсудить ..."
 
-        left = " ".join(["{0.mention}".format(m) for m in self.players])
+        left = ["{0.mention}".format(m) for m in self.players]
 
         embed = discord.Embed(
-            description="{0}\n\nЕсли вы подозрительно относитесь к игроку, упомяните его, используя '{2} acccuse',\n\n "
-                        "чтобы обвинить его в принадлежности к мафии, или используйте '{2} skip', чтобы молчать. \n\n"
-                        "По крайней мере, половина жителей должна кого-то обвинить, чтобы их проверили.\n\n{1} "
-                        "всё ещё в игре".format(text, left, self.prefix),
+            description=f"{text}\n\nЕсли вы подозрительно относитесь к игроку, упомяните его, используя '{self.prefix} acccuse', "
+                        f"чтобы обвинить его в принадлежности к мафии, или используйте '{self.prefix} skip', чтобы молчать. \n"
+                        f"По крайней мере, половина жителей должна кого-то обвинить, чтобы их проверили.\n\n " \
+                        + '\n'.join([self.emoji[i] + ' - ' + left[i] for i in range(len(left))]),
             colour=Colours.DARK_ORANGE,
         )
 
-        await self.channel.send(embed=embed)
+        mess = await self.channel.send(embed=embed)
+        self.vote_message_id = mess.id
+        for i in range(len(left)):
+            await mess.add_reaction(self.emoji[i])
+            self.dict_vote[self.emoji[i]] = self.players[i]
 
     async def purge(self):
         chosen, count = Counter(self.roundPurge.values()).most_common(1)[0]
@@ -809,7 +837,7 @@ class Game:
             await self.kill(chosen, True)
             win = self.checkWinConditions()
 
-            if win:
+            if win and self.state != State.END:
                 await self.endGame(win)
 
             else:

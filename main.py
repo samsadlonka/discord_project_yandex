@@ -56,26 +56,23 @@ class MafiaBotClient(discord.Client):
 
     async def on_message(self, message):
         game_channel = await self.get_channel_by_name('game')
-        if is_message_from_guild(message, self.guild) and is_message_from_channel(message, game_channel):
-            if message.author != self.user:
-                if message.content == '!создать' and self.game is None:
-                    self.game = Game(message)
-                    await message.channel.send('Игра создана! Чтобы удалить игру, используйте команду !удалить')
-                    await self.game.launch(message)
-                elif message.content == '!удалить' and self.game:
-                    self.game = None
-                    await message.channel.send('Игра успешна удалена!')
-                elif self.game:
-                    await self.game.on_message(message)
-                else:
-                    await message.channel.send('Для начала нужно создать игру командой !создать')
+        if message.author != self.user:
+            if message.content == '!создать' and self.game is None and is_message_from_channel(message, game_channel):
+                self.game = Game(message)
+                await message.channel.send('Игра создана! Чтобы удалить игру, используйте команду !удалить')
+                await self.game.launch(message)
+            elif message.content == '!удалить' and self.game and is_message_from_channel(message, game_channel):
+                self.game = None
+                await message.channel.send('Игра успешна удалена!')
+            elif self.game:
+                await self.game.on_message(message)
+            elif not self.game:
+                await message.channel.send('Для начала нужно создать игру командой !создать')
 
-    async def on_reaction_add(self, user, reaction):
+    async def on_reaction_add(self, reaction, user):
         # этой функции в гейме пока нет
-        if self.game:
-            await self.game.on_reaction_add(user, reaction)
-        else:
-            await reaction.message.channel.send('Какая-то странная ситуация')
+        if self.game and user.id != self.user.id:
+            await self.game.on_reaction_add(reaction, user)
 
     async def on_reaction_remove(self, user, reaction):
         await self.game.on_reaction_remove(user, reaction)
