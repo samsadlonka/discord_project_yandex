@@ -33,13 +33,14 @@ class Game:
     maxPlayers = 13
 
     # Game Object Methods
-    def __init__(self, message):
+    def __init__(self, message, waiting_channel):
         self.lock = asyncio.Lock()
         self.maxPlayers = 13
 
         self.channel = message.channel
         self.guild = message.guild
         self.voice_waiting_channel_id = 833781149632823297
+        #self.waiting_channel = waiting_channel
 
         self.prefix = '!'
         self.start_message_id = None
@@ -89,6 +90,13 @@ class Game:
         )
         self.start_message_id = mess.id
         await mess.add_reaction('✅')
+
+    async def on_voice_state_update(self, member, before, after):
+        if not after.channel:
+            await self.leave_game(member)
+        elif before.channel and before.channel.id != self.voice_waiting_channel_id and \
+                before.channel.id != after.channel.id:
+            await self.leave_game(member)
 
     async def on_reaction_add(self, reaction, user):
         async with self.lock:
@@ -555,11 +563,15 @@ class Game:
             for x in self.players:
                 await x.edit(voice_channel=self.voice_channel, mute=False)
         except Exception as e:
-            print(e)
             await self.channel.send(
                 "Я не могу продолжить, так как некоторые игроки не присоединились к голосовому каналу")
             await self.end_game()
             return False
+
+   # async def return_to_waiting(self):
+    #    print(self.waiting_channel)
+    #    for x in self.players:
+    #        await x.edit(voice_channel=self.waiting_channel)
 
     async def night_voice(self):
         for x in self.players:
@@ -696,7 +708,7 @@ class Game:
 
     async def end_game(self, win=False):
         self.state = State.END
-
+        #await self.return_to_waiting()
         if win == Win.VILLAGERS:
             winners = " ".join(["{0.mention}".format(m) for m in self.villagers])
             embed = discord.Embed(

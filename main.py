@@ -6,7 +6,7 @@ from func import is_message_from_channel, Colours
 
 from game import Game
 
-TOKEN = dotenv.get_key('.env', 'TOKEN')
+TOKEN = dotenv.get_key('credition.env', 'TOKEN')
 GUILD_ID = 831251799700275231
 
 logging.basicConfig(level=logging.INFO, filename='discord.log',
@@ -19,6 +19,7 @@ class MafiaBotClient(discord.Client):
         self.lobby_n = 1
         self.guild = None
         self.game = None
+        #self.waiting_voice = await self.fetch_channel(833781149632823297)
 
     async def get_channel_by_name(self, channel_name):
         channels = await self.guild.fetch_channels()
@@ -58,7 +59,7 @@ class MafiaBotClient(discord.Client):
         game_channel = await self.get_channel_by_name('game')
         if message.author != self.user:
             if message.content == '!create' and self.game is None and is_message_from_channel(message, game_channel):
-                self.game = Game(message)
+                self.game = Game(message, self.waiting_voice)
                 await message.channel.send('Игра создана! Чтобы удалить игру, используйте команду !delete')
                 await self.game.launch(message)
             elif message.content == '!delete' and self.game and is_message_from_channel(message, game_channel):
@@ -75,6 +76,10 @@ class MafiaBotClient(discord.Client):
 
     async def on_reaction_remove(self, user, reaction):
         await self.game.on_reaction_remove(user, reaction)
+
+    async def on_voice_state_update(self, member, before, after):
+        if self.game:
+            await self.game.on_voice_state_update(member, before, after)
 
 
 # это нужно, чтобы получить доступ к пользовательской информации
