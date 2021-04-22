@@ -2,7 +2,7 @@ import discord
 import dotenv
 import logging
 
-from func import is_message_from_guild, is_message_from_channel, Colours
+from func import is_message_from_channel, Colours
 
 from game import Game
 
@@ -57,17 +57,17 @@ class MafiaBotClient(discord.Client):
     async def on_message(self, message):
         game_channel = await self.get_channel_by_name('game')
         if message.author != self.user:
-            if message.content == '!создать' and self.game is None and is_message_from_channel(message, game_channel):
+            if message.content == '!create' and self.game is None and is_message_from_channel(message, game_channel):
                 self.game = Game(message)
-                await message.channel.send('Игра создана! Чтобы удалить игру, используйте команду !удалить')
+                await message.channel.send('Игра создана! Чтобы удалить игру, используйте команду !delete')
                 await self.game.launch(message)
-            elif message.content == '!удалить' and self.game and is_message_from_channel(message, game_channel):
+            elif message.content == '!delete' and self.game and is_message_from_channel(message, game_channel):
                 self.game = None
                 await message.channel.send('Игра успешна удалена!')
             elif self.game:
                 await self.game.on_message(message)
             elif not self.game:
-                await message.channel.send('Для начала нужно создать игру командой !создать')
+                await message.channel.send('Для начала нужно создать игру командой !create')
 
     async def on_reaction_add(self, reaction, user):
         # этой функции в гейме пока нет

@@ -41,6 +41,13 @@ def parseMessage(message, prefix):
     return command, args
 
 
+def n_from_arg(args):
+    if len(args) > 1:
+        try:
+            return int(args[1])
+        except ValueError:
+            return False
+
 class Colours:
     DEFAULT = 0
     AQUA = 1752220

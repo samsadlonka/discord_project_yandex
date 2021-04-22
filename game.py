@@ -6,7 +6,7 @@ import asyncio
 
 import discord
 
-from func import parseMessage, isDM, Colours
+from func import parseMessage, isDM, Colours, n_from_arg
 
 commands = ["join", "leave", "start", "choose", "purge", "why", "who"]
 
@@ -30,25 +30,30 @@ class Game:
     channel = None
 
     minPlayers = 5
-    maxPlayers = 15
+    maxPlayers = 13
 
     # Game Object Methods
     def __init__(self, message):
         self.lock = asyncio.Lock()
         self.maxPlayers = 13
 
-        self.guild = message.guild
         self.channel = message.channel
+        self.guild = message.guild
 
         self.prefix = '!'
         self.start_message_id = None
         self.vote_message_id = None
+        self.mafia_vote_message_id = None
+        self.doctor_vote_message_id = None
+        self.detective_vote_message_id = None
         self.emoji = '0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟 🅰️ 🅱️'.split(' ')
-        self.dict_vote = {}
+        self.dict_emoji_to_user = {}
 
         random.seed()
 
         self.setInitialState()
+
+        #
 
     def setInitialState(self):
         self.mafiaChannel = None
@@ -68,7 +73,7 @@ class Game:
         self.state = State.START
 
     async def destroy(self):
-        await self.removeMafiaChannel()
+        await self.remove_mafia_channel()
 
     async def launch(self, message):
         mess = await message.channel.send(
@@ -85,17 +90,35 @@ class Game:
         await mess.add_reaction('✅')
 
     async def on_reaction_add(self, reaction, user):
-        if reaction.message.id == self.start_message_id and self.state == State.START:
-            await self.join_in_game(user)
-        elif reaction.message.id == self.vote_message_id and self.state == State.ROUNDPURGE:
-            await self.vote_in_purge(user, reaction)
+        async with self.lock:
+            if reaction.message.id == self.start_message_id and self.state == State.START:
+                await self.join_in_game(user)
+
+            elif reaction.message.id == self.vote_message_id and self.state == State.ROUNDPURGE:
+                await self.vote_in_purge(user, reaction)
+
+            if self.state == State.ROUNDSLEEP:
+                if reaction.message.id == self.mafia_vote_message_id:
+                    await self.mafia_choose(reaction=reaction, user=user)
+
+                elif reaction.message.id == self.doctor_vote_message_id:
+                    await self.doctor_choose(reaction=reaction, user=user)
+
+                elif reaction.message.id == self.detective_vote_message_id:
+                    await self.detective_choose(reaction=reaction, user=user)
+
+                await self.test_round_continue()
 
     async def on_reaction_remove(self, reaction, user):
-        if reaction.message.id == self.start_message_id:
-            await self.leave_game(user)
+        async with self.lock:
+            if reaction.message.id == self.start_message_id:
+                await self.leave_game(user)
+
+            elif reaction.message.id == self.vote_message_id and self.state == State.ROUNDPURGE:
+                await self.remove_vote_in_purge(user, reaction)
 
     async def join_in_game(self, user):
-        if self.hasUser(user.id):
+        if self.user_in_game(user.id):
             await self.channel.send("Вы уже в игре!")
 
         else:
@@ -136,26 +159,154 @@ class Game:
 
             if self.state in [State.ROUNDSLEEP, State.ROUNDPURGE]:
                 await self.kill(user)
-                win = self.checkWinConditions()
+                win = self.check_win_conditions()
 
                 if win:
-                    await self.endGame(win)
+                    await self.end_game(win)
 
             else:
                 self.players.remove(user)
 
     async def vote_in_purge(self, user, reaction):
         if user in self.players:
-            self.roundPurge[user.id] = self.dict_vote[reaction.emoji]
-            left = len(self.players) - len(self.roundPurge)
-            await self.channel.send(
-                "{0.mention} проголосовал за {1.display_name} - {2} left to decide".format(
-                    user, self.dict_vote[reaction.emoji], left
+            if user.id not in self.roundPurge:
+                self.roundPurge[user.id] = self.dict_emoji_to_user[reaction.emoji]
+                left = len(self.players) - len(self.roundPurge)
+                await self.channel.send(
+                    "{0.mention} проголосовал за {1.display_name} - {2} ещё не проголосовали".format(
+                        user, self.dict_emoji_to_user[reaction.emoji], left
+                    )
                 )
-            )
+            else:
+                # манипуляция для того, чтобы понять, что удаляется вторая реакция
+                self.roundPurge[user.id] = [self.roundPurge[user.id], 2]
+                await reaction.remove(user)
+                await self.channel.send(
+                    "{0.mention} вы уже проголосовали! Сначала уберите реакцию и попробуйте снова".format(
+                        user
+                    )
+                )
 
             if len(self.roundPurge) == len(self.players):
                 await self.purge()
+
+    async def remove_vote_in_purge(self, user, reaction):
+        print(self.roundPurge[user.id])
+        if user in self.players and self.roundPurge[user.id]:
+            if type(self.roundPurge[user.id]) == list:
+                self.roundPurge[user.id] = self.roundPurge[user.id][0]
+            else:
+                del self.roundPurge[user.id]
+                await self.channel.send(f"{user.mention} вы успешно забрали свой голос!")
+
+    async def mafia_choose(self, message=None, reaction=None, user=None):
+        if message:
+            command, args = parseMessage(message, self.prefix)
+
+            choose_n = n_from_arg(args)
+
+            if choose_n is False:
+                await message.channel.send(
+                    "Не понял твой выбор - {}".format(
+                        message.author.mention)
+                )
+
+            elif message.author.id not in self.mafiaChoose and choose_n is not False:
+                if (choose_n < 0) or (choose_n >= len(self.players)):
+                    await self.mafiaChannel.send(
+                        "Не понял твой выбор - {}".format(
+                            message.author.mention
+                        )
+                    )
+                else:
+                    self.mafiaChoose[message.author.id] = self.players[choose_n]
+                    await self.mafiaChannel.send(
+                        "Выбор принят - {}".format(message.author.mention)
+                    )
+            elif message.author.id in self.mafiaChoose:
+                await self.mafiaChannel.send(
+                    "{} Вы уже проголосоваили!".format(message.author.mention)
+                )
+
+        elif reaction:
+            if user.id not in self.mafiaChoose:
+                self.mafiaChoose[user.id] = self.dict_emoji_to_user[reaction.emoji]
+                await self.mafiaChannel.send(
+                    "Выбор принят - {}".format(user.mention))
+            else:
+                await self.mafiaChannel.send(
+                    "{} Вы уже проголосовали!".format(user.mention))
+
+        await self.all_mafia_voted_check()
+
+    async def all_mafia_voted_check(self):
+        if len(self.mafiaChoose) == len(self.mafia):
+            chosen_user, count = Counter(self.mafiaChoose.values()).most_common(1)[0]
+            if count >= (math.floor(len(self.mafia) / 2) + 1):
+                self.roundKill = chosen_user
+                await self.mafiaChannel.send(
+                    "{} будет убит".format(
+                        self.roundKill.display_name
+                    )
+                )
+            else:
+                await self.mafiaChannel.send(
+                    "Вы не пришли к единому мнению, поэтому никого не убьют в эту ночь."
+                )
+                self.roundKillSkip = True
+
+    async def doctor_choose(self, message=None, reaction=None, user=None):
+        if message:
+            command, args = parseMessage(message, self.prefix)
+            choose_n = n_from_arg(args)
+
+            if choose_n is not False and ((choose_n >= 0) and (choose_n < len(self.players))):
+                save = self.players[choose_n]
+                if save != self.lastRoundSave:
+                    self.roundSave = save
+                    await message.channel.send(
+                        "Выбор защитан - {} будет вылечен".format(
+                            self.roundSave.display_name
+                        )
+                    )
+
+                else:
+                    await message.channel.send(
+                        "Нельзя выбирать одного и того же человека 2 ночи подряд!"
+                    )
+            else:
+                await message.channel.send("Это не корректный выбор!")
+        elif reaction:
+            save = self.dict_emoji_to_user[reaction.emoji]
+            if save != self.lastRoundSave:
+                self.roundSave = save
+                await user.send(
+                    "Выбор защитан - {} будет вылечен".format(
+                        self.roundSave.display_name))
+            else:
+                await user.send("Нельзя выбирать одного и того же человека 2 ночи подряд!")
+
+    async def detective_choose(self, message=None, reaction=None, user=None):
+        if message:
+            command, args = parseMessage(message, self.prefix)
+            choose_n = n_from_arg(args)
+
+            if choose_n is not False and ((choose_n >= 0) and (choose_n < len(self.players))):
+                self.roundDetect = self.players[choose_n]
+                await message.channel.send(
+                    "Выбор защитан - {} будет проверен".format(
+                        self.roundDetect.display_name
+                    )
+                )
+            else:
+                await message.channel.send("Это некорректный выбор!")
+        elif reaction:
+            if not self.roundDetect:
+                self.roundDetect = self.dict_emoji_to_user[reaction.emoji]
+                user.send("Выбор защитан - {} будет проверен".format(
+                    self.roundDetect.display_name))
+            else:
+                await user.send('Вы уже выбрали проверяемого!')
 
     async def on_message(self, message):
         async with self.lock:
@@ -167,56 +318,10 @@ class Game:
                     and message.channel == self.channel
                     and self.state == State.START
             ):
-                if self.hasUser(message.author.id):
-                    await message.channel.send("You're already in the game!")
-                # delete this shit
-                # elif userInActiveGame(message.author.id, self.bot.active):
-                #     await message.channel.send("You're already in a game elsewhere!")
-                else:
-                    try:
-                        embed = discord.Embed(
-                            description="Добро пожаловать в деревню Далёкую, надеемся, что это место вам понравится\n\n"
-                                        "Во время игры я буду отправлять тебе сообщения здесь, если ты хочешь покинуть "
-                                        "игру напиши '{}leave'в чат игры.".format(self.prefix),
-                            colour=Colours.DARK_BLUE,
-                        )
-                        await message.author.send(embed=embed)
-
-                        self.players.append(message.author)
-                        if len(self.players) < self.minPlayers:
-                            l = "{} игроков из {}".format(
-                                len(self.players), self.minPlayers
-                            )
-                        else:
-                            l = "{} игроков из максимальных{}".format(
-                                len(self.players), self.maxPlayers
-                            )
-                        await message.channel.send(
-                            "{} присоединился ({})".format(message.author.mention, l)
-                        )
-
-                    except discord.errors.Forbidden:
-                        await self.channel.send(
-                            "{0.mention} у вас отключены личные сообщения, поэтому я не могу писать вам".format(
-                                message.author
-                            )
-                        )
+                await self.join_in_game(message.author)
 
             elif command == "leave" and message.channel == self.channel:
-                if message.author in self.players:
-                    await self.channel.send(
-                        "{} покинул игру".format(message.author.mention)
-                    )
-
-                    if self.state in [State.ROUNDSLEEP, State.ROUNDPURGE]:
-                        await self.kill(message.author)
-                        win = self.checkWinConditions()
-
-                        if win:
-                            await self.endGame(win)
-
-                    else:
-                        self.players.remove(message.author)
+                await self.leave_game(message.author)
 
             elif (
                     command == "start"
@@ -224,6 +329,7 @@ class Game:
                     and self.state == State.START
             ):
                 if message.author in self.players and message.channel == self.channel:
+                    # DEBUG
                     # if len(self.players) < self.minPlayers:
                     #     await self.channel.send(
                     #         "Недостаточно игроков - ({} из необходимых {})".format(
@@ -232,86 +338,19 @@ class Game:
                     #     )
                     #
                     # else:
-                    await self.startGame()
+                    await self.start_game()
 
             elif command == "choose" and self.state == State.ROUNDSLEEP:
-                def IDFromArg(args):
-                    if len(args) > 1:
-                        try:
-                            return int(args[1])
-                        except ValueError:
-                            return False
-
-                if (
-                        message.author in self.mafia
-                        and message.channel == self.mafiaChannel
-                ):
-                    id = IDFromArg(args)
-
-                    if not message.author.id in self.mafiaChoose and id:
-                        if (id < 1) or (id > len(self.players)):
-                            await message.channel.send(
-                                "Не понял твой выбор - {}".format(
-                                    message.author.mention
-                                )
-                            )
-                        else:
-                            self.mafiaChoose[message.author.id] = id
-                            await message.channel.send(
-                                "Выбор принят - {}".format(message.author.mention)
-                            )
-
-                            if len(self.mafiaChoose) == len(self.mafia):
-                                chosen, count = Counter(
-                                    self.mafiaChoose.values()
-                                ).most_common(1)[0]
-                                if count >= (math.floor(len(self.mafia) / 2) + 1):
-                                    self.roundKill = self.players[chosen - 1]
-                                    await message.channel.send(
-                                        "{} будет убит".format(
-                                            self.roundKill.display_name
-                                        )
-                                    )
-                                else:
-                                    await message.channel.send(
-                                        "Вы не пришли к единому мнению, поэтому никого не убьют в эту ночь."
-                                    )
-                                    self.roundKillSkip = True
+                if message.author in self.mafia and message.channel == self.mafiaChannel:
+                    await self.mafia_choose(message=message)
 
                 elif message.author == self.doctor and isDM(message):
-                    id = IDFromArg(args)
-
-                    if id and ((id > 0) and (id <= len(self.players))):
-                        save = self.players[id - 1]
-                        if save != self.lastRoundSave:
-                            self.roundSave = save
-                            await message.channel.send(
-                                "Выбор защитан - {} будет вылечен".format(
-                                    self.roundSave.display_name
-                                )
-                            )
-
-                        else:
-                            await message.channel.send(
-                                "Нельзя выбирать одного и того же человека 2 ночи подряд!"
-                            )
-                    else:
-                        await message.channel.send("Это не корректный выбор!")
+                    await self.doctor_choose(message=message)
 
                 elif message.author == self.detective and isDM(message):
-                    id = IDFromArg(args)
+                    await self.detective_choose(message=message)
 
-                    if id and ((id > 0) and (id <= len(self.players))):
-                        self.roundDetect = self.players[id - 1]
-                        await message.channel.send(
-                            "Выбор защитан - {} будет проверен".format(
-                                self.roundDetect.display_name
-                            )
-                        )
-                    else:
-                        await message.channel.send("Это некорректный выбор!")
-
-                await self.testRoundContinue()
+                await self.test_round_continue()
 
             elif (
                     command == "accuse"
@@ -359,8 +398,8 @@ class Game:
                         )
                     )
 
-                    if len(self.roundPurge) == len(self.players):
-                        await self.purge()
+                if len(self.roundPurge) == len(self.players):
+                    await self.purge()
 
             elif command == "restart" and self.state == State.END:
                 self.setInitialState()
@@ -456,7 +495,7 @@ class Game:
                     )
 
     # Game Helpers
-    def checkWinConditions(self):
+    def check_win_conditions(self):
         if len(self.mafia) >= len(self.villagers):
             return Win.MAFIA
         elif len(self.mafia) == 0:
@@ -464,11 +503,12 @@ class Game:
         else:
             return False
 
-    def hasUser(self, uID):
+    def user_in_game(self, uID):
         count = len([u for u in self.players if u.id == uID])
         return count > 0
 
-    def allocateRoles(self):
+    def allocate_roles(self):
+
         nMafia = (
             1 if len(self.players) <= 5 else (math.floor(len(self.players) / 5) + 1)
         )
@@ -483,10 +523,10 @@ class Game:
 
         random.shuffle(self.players)
 
-    async def makeMafiaChannel(self):
+    async def make_mafia_channel(self):
         if not self.mafiaChannel:
             mafiaPermissions = discord.PermissionOverwrite(
-                read_messages=True, send_messages=True
+                read_messages=True, send_messages=True, add_reactions=False
             )
 
             overwrites = {
@@ -516,30 +556,34 @@ class Game:
                 await self.channel.send(
                     "Я не могу продолжить, потому что у меня нет разрешения на создание текстовых каналов в этой "
                     "категории каналов - вы удалили разрешение?")
-                await self.endGame()
+                await self.end_game()
                 return False
 
-    async def removeMafiaChannel(self):
+    async def remove_mafia_channel(self):
         if self.mafiaChannel:
             # del self.bot.mafiaChannels[self.mafiaChannel.id]
             await self.mafiaChannel.delete()
             self.mafiaChannel = None
 
-    async def removeFromMafia(self, player):
+    async def remove_from_mafia(self, player):
         self.mafia.remove(player)
         permissions = discord.PermissionOverwrite(
             read_messages=False, send_messages=False
         )
         await self.mafiaChannel.set_permissions(player, overwrite=permissions)
 
-    def makePlayerListEmbed(self):
+    def make_player_list_embed(self):
+        # ВАЖНО! Именно тут мы для каждой реакции запоминаем юзера
+        for i in range(len(self.players)):
+            self.dict_emoji_to_user[self.emoji[i]] = self.players[i]
+
         return discord.Embed(
             description="\n".join(
                 [
-                    "{0} - {1}".format((n + 1), v.display_name)
-                    for n, v in enumerate(self.players)
+                    "{0} - {1}".format(emoji, user.display_name)
+                    for emoji, user in zip(self.emoji, self.players)
                 ]
-            ),
+            ) + '\nps: 🅰️ = 11, 🅱️ = 12',
             colour=Colours.PURPLE,
         )
 
@@ -548,7 +592,7 @@ class Game:
 
         if player in self.mafia:
             role = "мафия"
-            await self.removeFromMafia(player)
+            await self.remove_from_mafia(player)
 
         elif player == self.doctor:
             role = "врач"
@@ -576,22 +620,22 @@ class Game:
 
         self.players.remove(player)
 
-        win = await self.checkWinConditions()
-        if win:
-            await self.endGame()
-        else:
-            await self.testRoundContinue()
+        # win = self.check_win_conditions()
+        # if win:
+        #     await self.end_game()
+        # else:
+        #     await self.test_round_continue()
 
     # Game Flow
-    async def startGame(self):
-        self.allocateRoles()
-        created = await self.makeMafiaChannel()
+    async def start_game(self):
+        self.allocate_roles()
+        created = await self.make_mafia_channel()
 
         if created:
-            await self.sendIntros()
-            await self.startRound()
+            await self.send_intros()
+            await self.start_round()
 
-    async def continueGame(self):
+    async def continue_game(self):
         self.lastRoundSave = self.roundSave
         self.mafiaChoose = {}
         self.roundKill = None
@@ -601,11 +645,10 @@ class Game:
         self.roundPurge = {}
 
         self.round += 1
-        await self.startRound()
+        await self.start_round()
 
-    async def endGame(self, win=False):
+    async def end_game(self, win=False):
         self.state = State.END
-        print(1)
 
         if win == Win.VILLAGERS:
             winners = " ".join(["{0.mention}".format(m) for m in self.villagers])
@@ -632,16 +675,11 @@ class Game:
                 colour=Colours.BLUE,
             )
 
-        await self.removeMafiaChannel()
+        await self.remove_mafia_channel()
         await self.channel.send(embed=embed)
 
-        # if self.settings["winCommand"]:
-        #     await self.channel.send(
-        #         "{} {}".format(self.settings["winCommand"], winners)
-        #     )
-
     # Round Flow
-    async def startRound(self):
+    async def start_round(self):
         embed = discord.Embed(
             title="Ночь {}".format(self.round),
             description="Наступает ночь, мирные жители засыпают",  # make list of these to work through as a story
@@ -649,9 +687,9 @@ class Game:
         )
         await self.channel.send(embed=embed)
         self.state = State.ROUNDSLEEP
-        await self.sendPrompts()
+        await self.send_prompts()
 
-    async def sendIntros(self):
+    async def send_intros(self):
         mafia = "".join(["{0.mention} ".format(m) for m in self.mafia])
         await self.mafiaChannel.send(
             "{} - вы мафия каждую ночь вы будете выбирать новую жертву!".format(
@@ -677,43 +715,58 @@ class Game:
                 await v.send(
                     "Вы - мирный житель, сосредоточьтесь, чтобы найти мафию.")
 
-    async def sendPrompts(self):
-        mafiaPrompt = "Напишите '{0}choose number' (например, '{0}choose number 1'), чтобы выбрать игрока, \n\n" \
-                      "которого вы хотите убить - вам нужно прийти к соглашению всей группой, если нет четкого выбора," \
-                      "никто не будет убит, поэтому  вы можете сначала обсудить свой выбор!".format(
-            self.prefix
-        )
-        doctorPrompt = "Напишите`{0}choose number` (например `{0}choose 1`), чтобы выбрать игрока для излечения".format(
-            self.prefix
-        )
-        detectivePrompt = "Напишите `{0}choose number` (например `{0}choose 1`), чтобы выбрать игрока " \
-                          "для проверки".format(self.prefix)
+    async def mess_add_all_reactions(self, mess):
+        for i in range(len(self.players)):
+            await mess.add_reaction(self.emoji[i])
 
-        embed = self.makePlayerListEmbed()
-        await self.mafiaChannel.send(mafiaPrompt, embed=embed)
+    async def send_prompts(self):
+        mafia_prompt = "Напишите '{0}choose number' (например '{0}choose 1'), чтобы выбрать игрока, " \
+                       "которого вы хотите убить - вам нужно прийти к соглашению всей группой, если нет четкого выбора," \
+                       "никто не будет убит, поэтому вы можете сначала обсудить свой выбор! Отменить выбор нельзя.".format(
+            self.prefix
+        )
+        doctor_prompt = "Напишите`{0}choose number` (например `{0}choose 1`), чтобы выбрать игрока для излечения." \
+                        "Отменить выбор нельзя!".format(
+            self.prefix
+        )
+        detective_prompt = "Напишите `{0}choose number` (например `{0}choose 1`), чтобы выбрать игрока " \
+                           "для проверки. Отменить выбор нельзя!".format(self.prefix)
+
+        embed = self.make_player_list_embed()
+        mafia_mess = await self.mafiaChannel.send(mafia_prompt, embed=embed)
+        self.mafia_vote_message_id = mafia_mess.id
+        await self.mess_add_all_reactions(mafia_mess)
 
         if self.doctor:
-            await self.doctor.send(doctorPrompt, embed=embed)
+            doctor_mess = await self.doctor.send(doctor_prompt, embed=embed)
+            self.doctor_vote_message_id = doctor_mess.id
+            await self.mess_add_all_reactions(doctor_mess)
+        else:
+            self.doctor_vote_message_id = None
 
         if self.detective:
-            await self.detective.send(detectivePrompt, embed=embed)
+            detective_mess = await self.detective.send(detective_prompt, embed=embed)
+            self.detective_vote_message_id = detective_mess.id
+            await self.mess_add_all_reactions(detective_mess)
+        else:
+            self.detective_vote_message_id = None
 
-    async def testRoundContinue(self):
+    async def test_round_continue(self):
         if (
                 (self.state == State.ROUNDSLEEP)
                 and (self.roundKill or self.roundKillSkip)
                 and (not self.doctor or self.roundSave)
                 and (not self.detective or self.roundDetect)
         ):
-            print('test round')
-            await self.summariseRound()
+            await self.summarise_round()
 
-    async def summariseRound(self):
+    async def summarise_round(self):
         summary = discord.Embed(
             title="Просыпаемся",
             description="Теперь, когда жители проснулись узнаем, что же случилось этой ночью",
             colour=Colours.PURPLE,
         )
+        kill = None
 
         if self.roundKillSkip:
             summary.add_field(
@@ -729,7 +782,6 @@ class Game:
                 value="Мафия выбрала убить {}".format(self.roundKill.mention),
                 inline=False,
             )
-
             if self.roundSave == self.roundKill:
                 summary.add_field(
                     name=":syringe:",
@@ -784,15 +836,15 @@ class Game:
 
         if kill:
             await self.kill(self.roundKill)
-            win = self.checkWinConditions()
+            win = self.check_win_conditions()
 
-            if win and self.state != State.END:
-                await self.endGame(win)
+            if win:
+                await self.end_game(win)
 
         if self.state != State.END:
-            await self.moveToPurge()
+            await self.move_to_purge()
 
-    async def moveToPurge(self):
+    async def move_to_purge(self):
         self.state = State.ROUNDPURGE
 
         if self.roundKillSkip:
@@ -820,11 +872,17 @@ class Game:
         self.vote_message_id = mess.id
         for i in range(len(left)):
             await mess.add_reaction(self.emoji[i])
-            self.dict_vote[self.emoji[i]] = self.players[i]
+            self.dict_emoji_to_user[self.emoji[i]] = self.players[i]
 
     async def purge(self):
-        chosen, count = Counter(self.roundPurge.values()).most_common(1)[0]
-        if chosen != False and count >= (math.ceil(len(self.players) / 2)):
+        most_commons = Counter(self.roundPurge.values()).most_common(len(self.roundPurge))
+
+        if len(most_commons) > 1:
+            chosen, count = None, None
+        else:
+            chosen, count = most_commons[0]
+
+        if chosen and count >= len(self.players) // 2:
             await self.channel.send(
                 embed=discord.Embed(
                     description="Жители решили, что {} должен быть проверен".format(
@@ -835,13 +893,13 @@ class Game:
             )
 
             await self.kill(chosen, True)
-            win = self.checkWinConditions()
-
-            if win and self.state != State.END:
-                await self.endGame(win)
+            win = self.check_win_conditions()
+            print(win)
+            if win:
+                await self.end_game(win)
 
             else:
-                await self.continueGame()
+                await self.continue_game()
         else:
             await self.channel.send(
                 embed=discord.Embed(
@@ -850,4 +908,4 @@ class Game:
                 )
             )
 
-            await self.continueGame()
+            await self.continue_game()
