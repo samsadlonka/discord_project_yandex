@@ -48,6 +48,7 @@ class Game:
         self.doctor_vote_message_id = None
         self.detective_vote_message_id = None
         self.emoji = '0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟 🅰️ 🅱️'.split(' ')
+        self.skip_emoji = '🚫'
         self.dict_emoji_to_user = {}
 
         random.seed()
@@ -172,13 +173,16 @@ class Game:
     async def vote_in_purge(self, user, reaction):
         if user in self.players:
             if user.id not in self.roundPurge:
-                self.roundPurge[user.id] = self.dict_emoji_to_user[reaction.emoji]
-                left = len(self.players) - len(self.roundPurge)
-                await self.channel.send(
-                    "{0.mention} проголосовал за {1.display_name} - {2} ещё не проголосовали".format(
-                        user, self.dict_emoji_to_user[reaction.emoji], left
+                if reaction.emoji == self.skip_emoji:
+                    await self.skip_vote(user)
+                else:
+                    self.roundPurge[user.id] = self.dict_emoji_to_user[reaction.emoji]
+                    left = len(self.players) - len(self.roundPurge)
+                    await self.channel.send(
+                        "{0.mention} проголосовал за {1.display_name} - {2} ещё не проголосовали".format(
+                            user, self.dict_emoji_to_user[reaction.emoji], left
+                        )
                     )
-                )
             else:
                 # манипуляция для того, чтобы понять, что удаляется вторая реакция
                 self.roundPurge[user.id] = [self.roundPurge[user.id], 2]
@@ -310,6 +314,16 @@ class Game:
             else:
                 await user.send('Вы уже выбрали проверяемого!')
 
+    async def skip_vote(self, user):
+        if user in self.players:
+            self.roundPurge[user.id] = False
+
+            await self.channel.send(
+                "{} воздержался от голосования - {} ещё не проголосовали".format(
+                    user.mention, len(self.players) - len(self.roundPurge)
+                )
+            )
+
     async def on_message(self, message):
         async with self.lock:
             # TODO: split this into separate functions!
@@ -391,14 +405,7 @@ class Game:
                     and message.channel == self.channel
                     and self.state == State.ROUNDPURGE
             ):
-                if message.author in self.players:
-                    self.roundPurge[message.author.id] = False
-                    left = len(self.players) - len(self.roundPurge)
-                    await message.channel.send(
-                        "{} skipped - {} left to decide".format(
-                            message.author.mention, left
-                        )
-                    )
+                await self.skip_vote(message.author)
 
                 if len(self.roundPurge) == len(self.players):
                     await self.purge()
@@ -762,16 +769,20 @@ class Game:
             await mess.add_reaction(self.emoji[i])
 
     async def send_prompts(self):
-        mafia_prompt = "Напишите '{0}choose number' (например '{0}choose 1'), чтобы выбрать игрока, " \
-                       "которого вы хотите убить - вам нужно прийти к соглашению всей группой, если нет четкого выбора," \
+        mafia_prompt = "Напишите '{0}choose number' (например '{0}choose 1') или нажмите на " \
+                       "соответсвующие эмодзи из списка ниже" \
+                       ", чтобы выбрать игрока, " \
+                       "которого вы хотите убить) Вам нужно прийти к соглашению всей группой, если нет четкого выбора," \
                        "никто не будет убит, поэтому вы можете сначала обсудить свой выбор! Отменить выбор нельзя.".format(
             self.prefix
         )
-        doctor_prompt = "Напишите`{0}choose number` (например `{0}choose 1`), чтобы выбрать игрока для излечения." \
+        doctor_prompt = "Напишите`{0}choose number` (например `{0}choose 1`) или нажмите на соответсвующие эмодзи из " \
+                        "списка ниже, чтобы выбрать игрока для излечения." \
                         "Отменить выбор нельзя!".format(
             self.prefix
         )
-        detective_prompt = "Напишите `{0}choose number` (например `{0}choose 1`), чтобы выбрать игрока " \
+        detective_prompt = "Напишите `{0}choose number` (например `{0}choose 1`) или нажмите на соответсвующие " \
+                           "эмодзи из списка ниже, чтобы выбрать игрока " \
                            "для проверки. Отменить выбор нельзя!".format(self.prefix)
 
         embed = self.make_player_list_embed()
@@ -906,8 +917,9 @@ class Game:
         left = ["{0.mention}".format(m) for m in self.players]
 
         embed = discord.Embed(
-            description=f"{text}\n\nЕсли вы подозрительно относитесь к игроку, упомяните его, используя '{self.prefix} acccuse', "
-                        f"чтобы обвинить его в принадлежности к мафии, или используйте '{self.prefix} skip', чтобы молчать. \n"
+            description=f"{text}\n\nЕсли вы подозрительно относитесь к игроку, упомяните его, используя cоответствующие эмодзи, "
+                        f"чтобы обвинить его в принадлежности к мафии! Используйте '{self.prefix} skip' или 🚫, "
+                        f"чтобы молчать(пропустить ход). \n"
                         f"По крайней мере, половина жителей должна кого-то обвинить, чтобы их проверили.\n\n " \
                         + '\n'.join([self.emoji[i] + ' - ' + left[i] for i in range(len(left))]),
             colour=Colours.DARK_ORANGE,
@@ -918,6 +930,7 @@ class Game:
         for i in range(len(left)):
             await mess.add_reaction(self.emoji[i])
             self.dict_emoji_to_user[self.emoji[i]] = self.players[i]
+        await mess.add_reaction(self.skip_emoji)
 
     async def purge(self):
         most_commons = Counter(self.roundPurge.values()).most_common(len(self.roundPurge))
