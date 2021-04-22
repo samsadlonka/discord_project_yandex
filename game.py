@@ -544,13 +544,17 @@ class Game:
     async def add_voice_channel(self):
         try:
             for x in self.players:
-                await x.edit(voice_channel=self.voice_channel)
+                await x.edit(voice_channel=self.voice_channel, mute=False)
         except Exception as e:
             print(e)
             await self.channel.send(
                 "Я не могу продолжить, так как некоторые игроки не присоединились к голосовому каналу")
             await self.end_game()
             return False
+
+    async def night(self):
+        for x in self.players:
+            await x.edit(mute=True)
 
     async def make_mafia_channel(self):
         if not self.mafiaChannel:
@@ -716,6 +720,7 @@ class Game:
             description="Наступает ночь, мирные жители засыпают",  # make list of these to work through as a story
             colour=Colours.PURPLE,
         )
+        await self.night()
         await self.channel.send(embed=embed)
         self.state = State.ROUNDSLEEP
         await self.send_prompts()
