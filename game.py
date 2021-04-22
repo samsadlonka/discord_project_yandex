@@ -53,10 +53,10 @@ class Game:
 
         self.setInitialState()
 
-        #
 
     def setInitialState(self):
         self.mafiaChannel = None
+        self.voice_channel = None
         self.players = []
         self.villagers = []
         self.mafia = []
@@ -518,10 +518,39 @@ class Game:
         self.mafia = self.players[0:nMafia]
         self.villagers = self.players[nMafia:]
 
-        self.doctor = self.villagers[0]
+        #self.doctor = self.villagers[0]
         self.detective = self.villagers[1] if len(self.players) > 5 else None
 
         random.shuffle(self.players)
+
+    async def make_voice_channel(self):
+        if not self.voice_channel:
+            try:
+                self.voice_channel = await self.channel.category.create_voice_channel("голосовой канал игры")
+                return True
+
+            except discord.errors.Forbidden:
+                await self.channel.send(
+                    "Я не могу продолжить, потому что у меня нет разрешения на создание голосовых каналов"
+                    "- вы удалили разрешение?")
+                await self.end_game()
+                return False
+
+    async def remote_voice_channel(self):
+        if self.voice_channel:
+            await self.voice_channel.delete()
+            self.voice_channel = None
+
+    async def add_voice_channel(self):
+        try:
+            for x in self.players:
+                await x.edit(voice_channel=self.voice_channel)
+        except Exception as e:
+            print(e)
+            await self.channel.send(
+                "Я не могу продолжить, так как некоторые игроки не присоединились к голосовому каналу")
+            await self.end_game()
+            return False
 
     async def make_mafia_channel(self):
         if not self.mafiaChannel:
@@ -630,8 +659,9 @@ class Game:
     async def start_game(self):
         self.allocate_roles()
         created = await self.make_mafia_channel()
-
-        if created:
+        create_voice = await self.make_voice_channel()
+        if created and create_voice:
+            await self.add_voice_channel()
             await self.send_intros()
             await self.start_round()
 
@@ -676,6 +706,7 @@ class Game:
             )
 
         await self.remove_mafia_channel()
+        await self.remote_voice_channel()
         await self.channel.send(embed=embed)
 
     # Round Flow
