@@ -6,7 +6,7 @@ import asyncio
 
 import discord
 
-from func import parseMessage, isDM, Colours, n_from_arg
+from func import parseMessage, isDM, Colours, n_from_arg, PICTURES_URLS
 
 commands = ["join", "leave", "start", "choose", "purge", "why", "who"]
 
@@ -732,7 +732,10 @@ class Game:
             title="Ночь {}".format(self.round),
             description="Наступает ночь, мирные жители засыпают",  # make list of these to work through as a story
             colour=Colours.PURPLE,
+
         )
+        embed.set_image(url=PICTURES_URLS['night'])
+
         await self.night_voice()
         await self.channel.send(embed=embed)
         self.state = State.ROUNDSLEEP

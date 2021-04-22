@@ -72,3 +72,5 @@ class Colours:
     DARK_NAVY = 2899536
     LUMINOUS_VIVID_PINK = 16580705
     DARK_VIVID_PINK = 12320855
+
+PICTURES_URLS = {'night': 'https://i.imgur.com/PFX64Ji.png'}
