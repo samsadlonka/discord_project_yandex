@@ -39,6 +39,7 @@ class Game:
 
         self.channel = message.channel
         self.guild = message.guild
+        self.voice_waiting_channel_id = 833781149632823297
 
         self.prefix = '!'
         self.start_message_id = None
@@ -52,7 +53,6 @@ class Game:
         random.seed()
 
         self.setInitialState()
-
 
     def setInitialState(self):
         self.mafiaChannel = None
@@ -121,7 +121,7 @@ class Game:
         if self.user_in_game(user.id):
             await self.channel.send("Вы уже в игре!")
 
-        else:
+        elif user.voice and user.voice.channel.id == self.voice_waiting_channel_id:
             try:
                 embed = discord.Embed(
                     description="Добро пожаловать в деревню Далёкую, надеемся, что это место вам понравится\n\n"
@@ -150,6 +150,8 @@ class Game:
                         user
                     )
                 )
+        else:
+            await self.channel.send('Чтобы зайти в игру, подключитесь к голосовому каналу "Ожидание игры"')
 
     async def leave_game(self, user):
         if user in self.players:
@@ -518,7 +520,7 @@ class Game:
         self.mafia = self.players[0:nMafia]
         self.villagers = self.players[nMafia:]
 
-        #self.doctor = self.villagers[0]
+        self.doctor = self.villagers[0]
         self.detective = self.villagers[1] if len(self.players) > 5 else None
 
         random.shuffle(self.players)
@@ -552,9 +554,13 @@ class Game:
             await self.end_game()
             return False
 
-    async def night(self):
+    async def night_voice(self):
         for x in self.players:
             await x.edit(mute=True)
+
+    async def day_voice(self):
+        for x in self.players:
+            await x.edit(mute=False)
 
     async def make_mafia_channel(self):
         if not self.mafiaChannel:
@@ -720,7 +726,7 @@ class Game:
             description="Наступает ночь, мирные жители засыпают",  # make list of these to work through as a story
             colour=Colours.PURPLE,
         )
-        await self.night()
+        await self.night_voice()
         await self.channel.send(embed=embed)
         self.state = State.ROUNDSLEEP
         await self.send_prompts()
@@ -797,6 +803,9 @@ class Game:
             await self.summarise_round()
 
     async def summarise_round(self):
+        # turn on micro
+        await self.day_voice()
+
         summary = discord.Embed(
             title="Просыпаемся",
             description="Теперь, когда жители проснулись узнаем, что же случилось этой ночью",

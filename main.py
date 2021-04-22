@@ -6,7 +6,7 @@ from func import is_message_from_channel, Colours
 
 from game import Game
 
-TOKEN = dotenv.get_key('crendition.env', 'TOKEN')
+TOKEN = dotenv.get_key('.env', 'TOKEN')
 GUILD_ID = 831251799700275231
 
 logging.basicConfig(level=logging.INFO, filename='discord.log',
@@ -70,7 +70,6 @@ class MafiaBotClient(discord.Client):
                 await message.channel.send('Для начала нужно создать игру командой !create')
 
     async def on_reaction_add(self, reaction, user):
-        # этой функции в гейме пока нет
         if self.game and user.id != self.user.id:
             await self.game.on_reaction_add(reaction, user)
 
