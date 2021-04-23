@@ -40,7 +40,7 @@ class Game:
         self.channel = message.channel
         self.guild = message.guild
         self.voice_waiting_channel_id = 833781149632823297
-        #self.waiting_channel = waiting_channel
+        self.waiting_channel = waiting_channel
 
         self.prefix = '!'
         self.start_message_id = None
@@ -78,16 +78,20 @@ class Game:
         await self.remove_mafia_channel()
 
     async def launch(self, message):
-        mess = await message.channel.send(
-            embed=discord.Embed(
-                title="Mafia :dagger:",
-                description="Добро пожаловать в деревню Далёкое обычно этоо спокойное место, но в последнее время "
-                            "происходит что-то странное по ночам.\n\n""Чтобы присоединиться к игре напиши '{0}join', "
-                            "далее '{0}start', когда будет хотя бы {1} игроков.\n\n"
-                            "Чтобы покинуть игру напиши '{0}leave'.".format(self.prefix, self.minPlayers),
-                colour=Colours.DARK_RED,
-            )
-        )
+        embed = discord.Embed(
+            title="Mafia :dagger:",
+            description="Добро пожаловать в город \"Далёкое\" обычно этоо спокойное место, но в последнее время "
+                        "происходит что-то странное по ночам.\n\n""Чтобы присоединиться к игре напиши '{0}join', "
+                        "или тыкни на ✅( зы: если не сработало, попробуйте перетыкнуть)) )"
+                        "далее '{0}start', когда будет хотя бы {1} игроков.\n\n"
+                        "Чтобы покинуть игру напиши '{0}leave'.\n\n"
+                        "Кроме того, в любой момент времени вы можете узнать, кто находится в игре командой '!who' "
+                        "и узнать, кого ждет бот с помощью '!why'".format(self.prefix, self.minPlayers),
+            colour=Colours.DARK_RED)
+        embed.set_image(url=PICTURES_URLS['start'])
+
+        mess = await message.channel.send(embed=embed)
+
         self.start_message_id = mess.id
         await mess.add_reaction('✅')
 
@@ -133,7 +137,7 @@ class Game:
         elif user.voice and user.voice.channel.id == self.voice_waiting_channel_id:
             try:
                 embed = discord.Embed(
-                    description="Добро пожаловать в деревню Далёкую, надеемся, что это место вам понравится\n\n"
+                    description="Добро пожаловать в город \"Далёкое\", надеемся, что это место вам понравится\n\n"
                                 "Во время игры я буду отправлять тебе сообщения здесь, если ты хочешь покинуть "
                                 "игру напиши '{}leave'в чат игры..".format(self.prefix),
                     colour=Colours.DARK_BLUE,
@@ -146,7 +150,7 @@ class Game:
                         len(self.players), self.minPlayers
                     )
                 else:
-                    l = "{} игроков из максимальных{}".format(
+                    l = "{} игроков из максимальных {}".format(
                         len(self.players), self.maxPlayers
                     )
                 await self.channel.send(
@@ -205,8 +209,7 @@ class Game:
                 await self.purge()
 
     async def remove_vote_in_purge(self, user, reaction):
-        print(self.roundPurge[user.id])
-        if user in self.players and self.roundPurge[user.id]:
+        if user in self.players and self.roundPurge.get(user.id):
             if type(self.roundPurge[user.id]) == list:
                 self.roundPurge[user.id] = self.roundPurge[user.id][0]
             else:
@@ -317,14 +320,14 @@ class Game:
         elif reaction:
             if not self.roundDetect:
                 self.roundDetect = self.dict_emoji_to_user[reaction.emoji]
-                user.send("Выбор защитан - {} будет проверен".format(
+                await user.send("Выбор защитан - {} будет проверен".format(
                     self.roundDetect.display_name))
             else:
                 await user.send('Вы уже выбрали проверяемого!')
 
     async def skip_vote(self, user):
         if user in self.players:
-            self.roundPurge[user.id] = False
+            self.roundPurge[user.id] = 'SKIP'
 
             await self.channel.send(
                 "{} воздержался от голосования - {} ещё не проголосовали".format(
@@ -527,7 +530,7 @@ class Game:
     def allocate_roles(self):
 
         nMafia = (
-            1 if len(self.players) <= 5 else (math.floor(len(self.players) / 5) + 1)
+            1 if len(self.players) <= 6 else (math.floor(len(self.players) / 5) + 1)
         )
 
         random.shuffle(self.players)
@@ -568,7 +571,7 @@ class Game:
             await self.end_game()
             return False
 
-   # async def return_to_waiting(self):
+    # async def return_to_waiting(self):
     #    print(self.waiting_channel)
     #    for x in self.players:
     #        await x.edit(voice_channel=self.waiting_channel)
@@ -580,6 +583,10 @@ class Game:
     async def day_voice(self):
         for x in self.players:
             await x.edit(mute=False)
+
+    async def return_to_waiting(self):
+        for x in self.players:
+            await x.edit(voice_channel=self.waiting_channel)
 
     async def make_mafia_channel(self):
         if not self.mafiaChannel:
@@ -674,6 +681,9 @@ class Game:
             description="Это был {}".format(role),
             colour=Colours.DARK_RED,
         )
+        if method == 'убит':
+            embed.set_image(url=PICTURES_URLS['mafia'])
+
         await self.channel.send(embed=embed)
 
         self.players.remove(player)
@@ -708,7 +718,7 @@ class Game:
 
     async def end_game(self, win=False):
         self.state = State.END
-        #await self.return_to_waiting()
+        await self.return_to_waiting()
         if win == Win.VILLAGERS:
             winners = " ".join(["{0.mention}".format(m) for m in self.villagers])
             embed = discord.Embed(
@@ -833,10 +843,11 @@ class Game:
         await self.day_voice()
 
         summary = discord.Embed(
-            title="Просыпаемся",
+            title="Доброе утро(нет)",
             description="Теперь, когда жители проснулись узнаем, что же случилось этой ночью",
             colour=Colours.PURPLE,
         )
+        summary.set_image(url=PICTURES_URLS['morning'])
         kill = None
 
         if self.roundKillSkip:
@@ -919,15 +930,15 @@ class Game:
         self.state = State.ROUNDPURGE
 
         if self.roundKillSkip:
-            text = "Хотя мафия никого не убила прошлой ночью, жители деревни все еще находятся в напряжении, и " \
+            text = "Хотя мафия никого не убила прошлой ночью, жители города все еще находятся в напряжении, и " \
                    "собираются для обсуждения ..."
 
         elif self.roundKill == self.roundSave:
-            text = "Напряжение накаляется после попытки убийства прошлой ночью, жители деревни собираются, " \
+            text = "Напряжение накаляется после попытки убийства прошлой ночью, жители города собираются, " \
                    "чтобы обсудить ...."
 
         else:
-            text = "В ужасе от убийства прошлой ночи, жители деревни собираются, чтобы обсудить ..."
+            text = "В ужасе от убийства прошлой ночи, жители города собираются, чтобы обсудить ..."
 
         left = ["{0.mention}".format(m) for m in self.players]
 
@@ -939,6 +950,7 @@ class Game:
                         + '\n'.join([self.emoji[i] + ' - ' + left[i] for i in range(len(left))]),
             colour=Colours.DARK_ORANGE,
         )
+        embed.set_image(url=PICTURES_URLS['briefing'])
 
         mess = await self.channel.send(embed=embed)
         self.vote_message_id = mess.id
@@ -951,11 +963,16 @@ class Game:
         most_commons = Counter(self.roundPurge.values()).most_common(len(self.roundPurge))
 
         if len(most_commons) > 1:
-            chosen, count = None, None
+            if most_commons[0][1] == most_commons[1][1]:
+                chosen, count = None, None
+            else:
+                chosen, count = most_commons[0]
         else:
             chosen, count = most_commons[0]
 
-        if chosen and count >= len(self.players) // 2:
+        print(chosen, count)
+
+        if chosen and chosen != 'SKIP' and count >= len(self.players) // 2:
             await self.channel.send(
                 embed=discord.Embed(
                     description="Жители решили, что {} должен быть проверен".format(
@@ -967,7 +984,6 @@ class Game:
 
             await self.kill(chosen, True)
             win = self.check_win_conditions()
-            print(win)
             if win:
                 await self.end_game(win)
 
