@@ -48,6 +48,7 @@ def n_from_arg(args):
         except ValueError:
             return False
 
+
 class Colours:
     DEFAULT = 0
     AQUA = 1752220
@@ -73,4 +74,11 @@ class Colours:
     LUMINOUS_VIVID_PINK = 16580705
     DARK_VIVID_PINK = 12320855
 
-PICTURES_URLS = {'night': 'https://i.imgur.com/PFX64Ji.png'}
+
+PICTURES_URLS = {
+    'start': 'https://i.imgur.com/ORPwDJY.png',
+    'night': 'https://i.imgur.com/PFX64Ji.png',
+    'morning': 'https://i.imgur.com/ae5VUur.jpeg',
+    'mafia': 'https://i.imgur.com/SJw2y0M.png',
+    'briefing': 'https://i.imgur.com/MriXBpV.png'
+}

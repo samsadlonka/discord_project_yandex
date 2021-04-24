@@ -2,7 +2,7 @@ import discord
 import dotenv
 import logging
 
-from func import is_message_from_channel, Colours
+from func import is_message_from_channel
 
 from game import Game
 
@@ -16,9 +16,11 @@ logging.basicConfig(level=logging.INFO, filename='discord.log',
 class MafiaBotClient(discord.Client):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.lobby_n = 1
+
         self.guild = None
+        self.owner = None
         self.game = None
+        self.waiting_voice = None
 
     async def get_channel_by_name(self, channel_name):
         channels = await self.guild.fetch_channels()
@@ -49,7 +51,10 @@ class MafiaBotClient(discord.Client):
             print(
                 f'{self.user} подключились к чату:\n'
                 f'{guild.name}(id: {guild.id}), owner: {guild.owner}')
+            self.owner = guild.owner
         self.guild = self.guilds[0]
+
+        self.waiting_voice = self.get_channel(833781149632823297)
         # logging.info('Create pull')
         # await self.create_lobby_pull()
         # logging.info('Pull created')
@@ -57,11 +62,13 @@ class MafiaBotClient(discord.Client):
     async def on_message(self, message):
         game_channel = await self.get_channel_by_name('game')
         if message.author != self.user:
-            if message.content == '!create' and self.game is None and is_message_from_channel(message, game_channel):
-                self.game = Game(message)
+            if message.content == '!create' and self.game is None and is_message_from_channel(message, game_channel) \
+                    and (message.author.top_role.name == 'adm' or message.author == self.owner):
+                self.game = Game(message, self.waiting_voice)
                 await message.channel.send('Игра создана! Чтобы удалить игру, используйте команду !delete')
                 await self.game.launch(message)
-            elif message.content == '!delete' and self.game and is_message_from_channel(message, game_channel):
+            elif message.content == '!delete' and self.game and is_message_from_channel(message, game_channel) \
+                    and (message.author.top_role.name == 'adm' or message.author == self.owner):
                 self.game = None
                 await message.channel.send('Игра успешна удалена!')
             elif message.content == '!hard' and self.game:
@@ -70,7 +77,7 @@ class MafiaBotClient(discord.Client):
             elif self.game:
                 await self.game.on_message(message)
             elif not self.game:
-                await message.channel.send('Для начала нужно создать игру командой !create (только для админов)')
+                await message.channel.send('Для начала нужно создать игру командой !create (Только для админов)')
 
     async def on_reaction_add(self, reaction, user):
         if self.game and user.id != self.user.id:
@@ -79,10 +86,15 @@ class MafiaBotClient(discord.Client):
     async def on_reaction_remove(self, user, reaction):
         await self.game.on_reaction_remove(user, reaction)
 
+    async def on_voice_state_update(self, member, before, after):
+        if self.game:
+            await self.game.on_voice_state_update(member, before, after)
+
 
 # это нужно, чтобы получить доступ к пользовательской информации
 intents = discord.Intents.default()
 intents.members = True
+intents.reactions = True
 
 client = MafiaBotClient(intents=intents)
 client.run(TOKEN)
