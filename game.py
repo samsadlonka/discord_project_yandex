@@ -547,8 +547,7 @@ class Game:
         self.villagers = self.players[nMafia:]
 
         self.doctor = self.villagers[0]
-        # self.detective = self.villagers[1] if len(self.players) > 5 else None
-        self.detective = self.villagers[1]
+        self.detective = self.villagers[1] if len(self.players) > 5 else None
 
         random.shuffle(self.players)
 
@@ -717,7 +716,7 @@ class Game:
         self.players.remove(player)
         if self.hard_mode:
             win = self.check_win_conditions()
-            if not win:
+            if not win and player.voice and player.voice.channel == self.voice_channel:
                 await self.channel.send(f"{player.mention} У вас есть 30 секунд, чтобы сказать последнее слово")
                 await asyncio.sleep(30)
                 await self.return_member_to_waiting(player)
@@ -894,11 +893,19 @@ class Game:
             kill = False
 
         elif self.roundKill:
-            summary.add_field(
-                name=":dagger:",
-                value="Мафия выбрала убить {}".format(self.roundKill.mention),
-                inline=False,
-            )
+            if self.hard_mode and self.roundSave == self.roundKill:
+                summary.add_field(
+                    name=":dagger:",
+                    value="Мафия хотела убить кого-то, но доктор пришел вовремя и спас кого-то!".format(self.roundKill.mention),
+                    inline=False,
+                )
+            else:
+                summary.add_field(
+                    name=":dagger:",
+                    value="Мафия выбрала убить {}".format(self.roundKill.mention),
+                    inline=False,
+                )
+
             if self.roundSave == self.roundKill:
                 summary.add_field(
                     name=":syringe:",
@@ -907,7 +914,7 @@ class Game:
                 )
                 kill = False
 
-            elif self.doctor:
+            elif self.doctor or self.hard_mode:
                 summary.add_field(
                     name=":skull_crossbones:",
                     value="Врач не смог вылечить его",
