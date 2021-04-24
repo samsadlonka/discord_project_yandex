@@ -87,6 +87,8 @@ class MafiaBotClient(discord.Client):
         await self.game.on_reaction_remove(user, reaction)
 
     async def on_voice_state_update(self, member, before, after):
+        if after and after.channel == self.waiting_voice and after.mute:
+            await member.edit(mute=False)
         if self.game:
             await self.game.on_voice_state_update(member, before, after)
 
@@ -95,6 +97,7 @@ class MafiaBotClient(discord.Client):
 intents = discord.Intents.default()
 intents.members = True
 intents.reactions = True
+intents.voice_states = True
 
 client = MafiaBotClient(intents=intents)
 client.run(TOKEN)

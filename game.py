@@ -168,10 +168,12 @@ class Game:
                     )
                 )
         else:
-            await self.channel.send('Чтобы зайти в игру, подключитесь к голосовому каналу "Ожидание игры"')
+            await self.channel.send(
+                f'{user.mention} Чтобы зайти в игру, подключитесь к голосовому каналу "Ожидание игры"')
 
     async def leave_game(self, user):
         if user in self.players:
+
             await self.channel.send(
                 "{} покинул игру".format(user.mention)
             )
@@ -544,7 +546,7 @@ class Game:
         self.mafia = self.players[0:nMafia]
         self.villagers = self.players[nMafia:]
 
-        # self.doctor = self.villagers[0]
+        self.doctor = self.villagers[0]
         self.detective = self.villagers[1] if len(self.players) > 5 else None
 
         random.shuffle(self.players)
@@ -601,8 +603,13 @@ class Game:
             await x.edit(mute=False)
 
     async def return_to_waiting(self):
-        for x in self.players:
-            await x.edit(voice_channel=self.waiting_channel)
+        for member in self.all_game_users:
+            if member.voice:
+                await member.edit(voice_channel=self.waiting_channel)
+
+    async def return_member_to_waiting(self, member):
+        if member.voice:
+            await member.edit(voice_channel=self.waiting_channel)
 
     async def make_mafia_channel(self):
         if not self.mafiaChannel:
@@ -708,6 +715,11 @@ class Game:
 
         self.players.remove(player)
 
+        if self.hard_mode:
+            await self.channel.send(f"{player.mention} У вас есть 30 секунд, чтобы сказать последнее слово")
+            await asyncio.sleep(30)
+            await self.return_member_to_waiting(player)
+
         # win = self.check_win_conditions()
         # if win:
         #     await self.end_game()
@@ -738,7 +750,7 @@ class Game:
 
     async def end_game(self, win=False):
         self.state = State.END
-        await self.return_to_waiting()
+
         if win == Win.VILLAGERS:
             winners = " ".join(["{0.mention}".format(m) for m in self.villagers])
             embed = discord.Embed(
@@ -764,6 +776,7 @@ class Game:
                 colour=Colours.BLUE,
             )
 
+        await self.return_to_waiting()
         await self.remove_mafia_channel()
         await self.remove_voice_channel()
         await self.channel.send(embed=embed)
