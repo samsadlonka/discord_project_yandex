@@ -64,10 +64,13 @@ class MafiaBotClient(discord.Client):
             elif message.content == '!delete' and self.game and is_message_from_channel(message, game_channel):
                 self.game = None
                 await message.channel.send('Игра успешна удалена!')
+            elif message.content == '!hard' and self.game:
+                await message.channel.send('Вы включили хард моД!!! Все роли будут скрыты)')
+                self.game.hard_mode = True
             elif self.game:
                 await self.game.on_message(message)
             elif not self.game:
-                await message.channel.send('Для начала нужно создать игру командой !create')
+                await message.channel.send('Для начала нужно создать игру командой !create (только для админов)')
 
     async def on_reaction_add(self, reaction, user):
         if self.game and user.id != self.user.id:

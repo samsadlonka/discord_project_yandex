@@ -33,7 +33,7 @@ class Game:
     maxPlayers = 13
 
     # Game Object Methods
-    def __init__(self, message):
+    def __init__(self, message, hard_mode=False):
         self.lock = asyncio.Lock()
         self.maxPlayers = 13
 
@@ -50,6 +50,9 @@ class Game:
         self.emoji = '0️⃣ 1️⃣ 2️⃣ 3️⃣ 4️⃣ 5️⃣ 6️⃣ 7️⃣ 8️⃣ 9️⃣ 🔟 🅰️ 🅱️'.split(' ')
         self.skip_emoji = '🚫'
         self.dict_emoji_to_user = {}
+
+        self.all_game_users = []
+        self.hard_mode = hard_mode
 
         random.seed()
 
@@ -81,9 +84,11 @@ class Game:
             embed=discord.Embed(
                 title="Mafia :dagger:",
                 description="Добро пожаловать в деревню Далёкое обычно этоо спокойное место, но в последнее время "
-                            "происходит что-то странное по ночам.\n\n""Чтобы присоединиться к игре напиши '{0}join', "
+                            "происходит что-то странное по ночам.\n\n""Чтобы присоединиться к игре напиши '{0}join'"
+                            "или нажмите на ✅, "
                             "далее '{0}start', когда будет хотя бы {1} игроков.\n\n"
-                            "Чтобы покинуть игру напиши '{0}leave'.".format(self.prefix, self.minPlayers),
+                            "Чтобы покинуть игру напиши '{0}leave'.\n\n"
+                            "Чтобы включить хард-мод напишите !hard".format(self.prefix, self.minPlayers),
                 colour=Colours.DARK_RED,
             )
         )
@@ -518,6 +523,8 @@ class Game:
 
     def allocate_roles(self):
 
+        self.all_game_users = self.players[:]
+
         nMafia = (
             1 if len(self.players) <= 5 else (math.floor(len(self.players) / 5) + 1)
         )
@@ -527,15 +534,29 @@ class Game:
         self.mafia = self.players[0:nMafia]
         self.villagers = self.players[nMafia:]
 
-        self.doctor = self.villagers[0]
+        # self.doctor = self.villagers[0]
         self.detective = self.villagers[1] if len(self.players) > 5 else None
 
         random.shuffle(self.players)
 
     async def make_voice_channel(self):
         if not self.voice_channel:
+            # players_permissions = discord.PermissionOverwrite(
+            #     connect=True
+            # )
+            overwrites = {
+                self.guild.default_role: discord.PermissionOverwrite(
+                    connect=False
+                ),
+                self.guild.me: discord.PermissionOverwrite(
+                    mute_members=True,
+                    move_members=True
+                ),
+            }
+
             try:
-                self.voice_channel = await self.channel.category.create_voice_channel("голосовой канал игры")
+                self.voice_channel = await self.channel.category.create_voice_channel("голосовой канал игры",
+                                                                                      overwrites=overwrites)
                 return True
 
             except discord.errors.Forbidden:
@@ -545,7 +566,7 @@ class Game:
                 await self.end_game()
                 return False
 
-    async def remote_voice_channel(self):
+    async def remove_voice_channel(self):
         if self.voice_channel:
             await self.voice_channel.delete()
             self.voice_channel = None
@@ -595,7 +616,6 @@ class Game:
                 self.mafiaChannel = await self.channel.category.create_text_channel(
                     "the-mafia", overwrites=overwrites
                 )
-                # self.bot.mafiaChannels[self.mafiaChannel.id] = self.channel.id
                 return True
 
             except discord.errors.Forbidden:
@@ -657,9 +677,14 @@ class Game:
         else:
             return
 
+        if self.hard_mode:
+            desc = 'Ну умер и умер, че бубнить-то(роль неизвестна)'
+        else:
+            desc = "Это был {}".format(role)
+
         embed = discord.Embed(
             title="{} был {}!".format(player.display_name, method),
-            description="Это был {}".format(role),
+            description=desc,
             colour=Colours.DARK_RED,
         )
         await self.channel.send(embed=embed)
@@ -723,7 +748,7 @@ class Game:
             )
 
         await self.remove_mafia_channel()
-        await self.remote_voice_channel()
+        await self.remove_voice_channel()
         await self.channel.send(embed=embed)
 
     # Round Flow
@@ -863,25 +888,27 @@ class Game:
 
         if self.detective and self.roundDetect:
             if self.roundDetect in self.mafia:
-                summary.add_field(
-                    name=":detective:",
-                    value="Детектив нашёл мафию",
-                    inline=False,
-                )
+                if not self.hard_mode:
+                    summary.add_field(
+                        name=":detective:",
+                        value="Детектив нашёл мафию",
+                        inline=False,
+                    )
                 await self.detective.send(
                     embed=discord.Embed(
-                        description="Верно {} - это мафия !".format(
+                        description="Верно {} - это мафия!".format(
                             self.roundDetect.display_name
                         ),
                         colour=Colours.DARK_RED,
                     )
                 )
             else:
-                summary.add_field(
-                    name=":detective:",
-                    value="Детектив не нашёл мафию",
-                    inline=False,
-                )
+                if not self.hard_mode:
+                    summary.add_field(
+                        name=":detective:",
+                        value="Детектив не нашёл мафию",
+                        inline=False,
+                    )
                 await self.detective.send(
                     embed=discord.Embed(
                         description="Неверно {} не является мафией!".format(
