@@ -459,11 +459,11 @@ class Game:
                     if self.detective and not self.roundDetect:
                         waiting.append("Детектив")
 
+                    desc = "Я жду пока сделают свой выбор: {}".format(", ".join(waiting)) if not self.hard_mode else \
+                        'Я жду пока сделают свой выбор: ' + str(len(waiting)) + ' человек'
                     await self.channel.send(
                         embed=discord.Embed(
-                            description="Я жду пока сделают свой выбор: {}".format(
-                                ", ".join(waiting)
-                            ),
+                            description=desc,
                             colour=Colours.BLUE,
                         )
                     )
@@ -547,7 +547,8 @@ class Game:
         self.villagers = self.players[nMafia:]
 
         self.doctor = self.villagers[0]
-        self.detective = self.villagers[1] if len(self.players) > 5 else None
+        # self.detective = self.villagers[1] if len(self.players) > 5 else None
+        self.detective = self.villagers[1]
 
         random.shuffle(self.players)
 
@@ -714,11 +715,12 @@ class Game:
         await self.channel.send(embed=embed)
 
         self.players.remove(player)
-
         if self.hard_mode:
-            await self.channel.send(f"{player.mention} У вас есть 30 секунд, чтобы сказать последнее слово")
-            await asyncio.sleep(30)
-            await self.return_member_to_waiting(player)
+            win = self.check_win_conditions()
+            if not win:
+                await self.channel.send(f"{player.mention} У вас есть 30 секунд, чтобы сказать последнее слово")
+                await asyncio.sleep(30)
+                await self.return_member_to_waiting(player)
 
         # win = self.check_win_conditions()
         # if win:
