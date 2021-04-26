@@ -648,7 +648,6 @@ class Game:
 
     async def remove_mafia_channel(self):
         if self.mafiaChannel:
-            # del self.bot.mafiaChannels[self.mafiaChannel.id]
             await self.mafiaChannel.delete()
             self.mafiaChannel = None
 
