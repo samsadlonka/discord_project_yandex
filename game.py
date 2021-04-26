@@ -362,15 +362,14 @@ class Game:
                     and self.state == State.START
             ):
                 if message.author in self.players and message.channel == self.channel:
-                    # DEBUG
-                    # if len(self.players) < self.minPlayers:
-                    #     await self.channel.send(
-                    #         "Недостаточно игроков - ({} из необходимых {})".format(
-                    #             len(self.players), self.minPlayers
-                    #         )
-                    #     )
-                    #
-                    # else:
+                    if len(self.players) < self.minPlayers:
+                        await self.channel.send(
+                            "Недостаточно игроков - ({} из необходимых {})".format(
+                                len(self.players), self.minPlayers
+                            )
+                        )
+
+                    else:
                     await self.start_game()
 
             elif command == "choose" and self.state == State.ROUNDSLEEP:
