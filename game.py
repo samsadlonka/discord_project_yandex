@@ -370,7 +370,7 @@ class Game:
                         )
 
                     else:
-                    await self.start_game()
+                        await self.start_game()
 
             elif command == "choose" and self.state == State.ROUNDSLEEP:
                 if message.author in self.mafia and message.channel == self.mafiaChannel:
