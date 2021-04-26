@@ -2,9 +2,9 @@ import discord
 import dotenv
 import logging
 
-from func import is_message_from_channel
+from func import is_message_from_channel, Colours
 
-from game import Game
+from game import Game, State
 
 TOKEN = dotenv.get_key('.env', 'TOKEN')
 GUILD_ID = 831251799700275231
@@ -71,7 +71,8 @@ class MafiaBotClient(discord.Client):
                     and (message.author.top_role.name == 'adm' or message.author == self.owner):
                 self.game = None
                 await message.channel.send('Игра успешна удалена!')
-            elif message.content == '!hard' and self.game:
+            elif message.content == '!hard' and self.game and (
+                    self.game.state == State.START or self.game.state == State.END):
                 if self.game.hard_mode:
                     self.game.hard_mode = False
                     await message.channel.send('Вы выключили хард моД)')
