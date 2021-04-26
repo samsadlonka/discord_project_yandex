@@ -72,8 +72,12 @@ class MafiaBotClient(discord.Client):
                 self.game = None
                 await message.channel.send('Игра успешна удалена!')
             elif message.content == '!hard' and self.game:
-                await message.channel.send('Вы включили хард моД!!! Все роли будут скрыты)')
-                self.game.hard_mode = True
+                if self.game.hard_mode:
+                    self.game.hard_mode = False
+                    await message.channel.send('Вы выключили хард моД)')
+                else:
+                    await message.channel.send('Вы включили хард моД!!! Все роли будут скрыты)')
+                    self.game.hard_mode = True
             elif self.game:
                 await self.game.on_message(message)
             elif not self.game:
