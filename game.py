@@ -92,7 +92,7 @@ class Game:
                         "и узнать, кого ждет бот с помощью '!why'\n\n"
                         "Чтобы включить хард-мод напишите !hard".format(self.prefix, self.minPlayers),
             colour=Colours.DARK_RED)
-        embed.set_image(url=PICTURES_URLS['start'])
+        embed.set_image(url=random.choice(PICTURES_URLS['start']))
 
         mess = await message.channel.send(embed=embed)
 
@@ -362,15 +362,15 @@ class Game:
                     and self.state == State.START
             ):
                 if message.author in self.players and message.channel == self.channel:
-                    if len(self.players) < self.minPlayers:
-                        await self.channel.send(
-                            "Недостаточно игроков - ({} из необходимых {})".format(
-                                len(self.players), self.minPlayers
-                            )
-                        )
-
-                    else:
-                        await self.start_game()
+                    # if len(self.players) < self.minPlayers:
+                    #     await self.channel.send(
+                    #         "Недостаточно игроков - ({} из необходимых {})".format(
+                    #             len(self.players), self.minPlayers
+                    #         )
+                    #     )
+                    #
+                    # else:
+                    await self.start_game()
 
             elif command == "choose" and self.state == State.ROUNDSLEEP:
                 if message.author in self.mafia and message.channel == self.mafiaChannel:
@@ -707,7 +707,9 @@ class Game:
             colour=Colours.DARK_RED,
         )
         if method == 'убит':
-            embed.set_image(url=PICTURES_URLS['mafia'])
+            embed.set_image(url=random.choice(PICTURES_URLS['mafia_kill']))
+        else:
+            embed.set_image(url=random.choice(PICTURES_URLS['city_kill']))
 
         await self.channel.send(embed=embed)
 
@@ -788,7 +790,7 @@ class Game:
             colour=Colours.PURPLE,
 
         )
-        embed.set_image(url=PICTURES_URLS['night'])
+        embed.set_image(url=random.choice(PICTURES_URLS['night']))
 
         await self.night_voice()
         await self.channel.send(embed=embed)
@@ -803,23 +805,35 @@ class Game:
             )
         )
 
-        for v in self.villagers:
+        for v in self.players:
             if v in self.mafia:
-                await v.send(
-                    "Вы мафия и  каждую ночь вы будете выбирать новую жертву. Зайдите в канал "
-                    "`#the-mafia`, чтобы сделать свой выбор.")
+                embed = discord.Embed(title='Вы мафия',
+                                      description='Каждую ночь вы будете выбирать новую жертву. Зайдите в канал\
+                                       `#the-mafia`, чтобы сделать свой выбор.',
+                                      colour=Colours.DARK_RED)
+                embed.set_image(url=PICTURES_URLS['mafia'])
+                await v.send(embed=embed)
             elif v == self.doctor:
-                await v.send(
-                    "Вы врач каждую ночь вы будете выбирать одного жителя, которого хотите вылечить. "
-                    "Нельзя лечить одного и того же человека две ночи подряд.")
+                embed = discord.Embed(title='Вы врач',
+                                      description='Каждую ночь вы будете выбирать одного жителя, которого хотите вылечить.\
+                    Нельзя лечить одного и того же человека две ночи подряд.',
+                                      colour=Colours.DARK_GREEN)
+                embed.set_image(url=PICTURES_URLS['doctor'])
+                await v.send(embed=embed)
 
             elif v == self.detective:
-                await v.send(
-                    "Вы детектив и каждую ночь вы будете выбирать одного жителя и искать среди них мафию")
+                embed = discord.Embed(title='Вы детектив',
+                                      description='Каждую ночь вы будете выбирать одного жителя и проверять его',
+                                      colour=Colours.DARK_GREEN)
+                embed.set_image(url=PICTURES_URLS['detective'])
+                await v.send(embed=embed)
 
             else:
-                await v.send(
-                    "Вы - мирный житель, сосредоточьтесь, чтобы найти мафию.")
+                embed = discord.Embed(title='Вы мирный житель',
+                                      description='Сосредоточьтесь, чтобы найти мафию.',
+                                      colour=Colours.DARK_GREEN)
+                embed.set_image(url=random.choice(PICTURES_URLS['villager']))
+                await v.send(embed=embed)
 
     async def mess_add_all_reactions(self, mess):
         for i in range(len(self.players)):
@@ -879,7 +893,7 @@ class Game:
             description="Теперь, когда жители проснулись узнаем, что же случилось этой ночью",
             colour=Colours.PURPLE,
         )
-        summary.set_image(url=PICTURES_URLS['morning'])
+        summary.set_image(url=random.choice(PICTURES_URLS['morning']))
         kill = None
 
         if self.roundKillSkip:
@@ -894,7 +908,8 @@ class Game:
             if self.hard_mode and self.roundSave == self.roundKill:
                 summary.add_field(
                     name=":dagger:",
-                    value="Мафия хотела убить кого-то, но доктор пришел вовремя и спас кого-то!".format(self.roundKill.mention),
+                    value="Мафия хотела убить кого-то, но доктор пришел вовремя и спас кого-то!".format(
+                        self.roundKill.mention),
                     inline=False,
                 )
             else:
@@ -992,7 +1007,7 @@ class Game:
                         + '\n'.join([self.emoji[i] + ' - ' + left[i] for i in range(len(left))]),
             colour=Colours.DARK_ORANGE,
         )
-        embed.set_image(url=PICTURES_URLS['briefing'])
+        embed.set_image(url=random.choice(PICTURES_URLS['briefing']))
 
         mess = await self.channel.send(embed=embed)
         self.vote_message_id = mess.id
