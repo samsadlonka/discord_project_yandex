@@ -77,12 +77,13 @@ class Colours:
 
 PICTURES_URLS = {
     'start': ['https://i.imgur.com/ORPwDJY.png'],
-    'night': ['https://i.imgur.com/PFX64Ji.png'],
+    'night': ['https://i.imgur.com/PFX64Ji.png', 'https://i.imgur.com/AQFcBqe.png'],
     'morning': ['https://i.imgur.com/ae5VUur.jpeg'],
     'mafia_kill': ['https://i.imgur.com/SJw2y0M.png', 'https://i.imgur.com/MY7RBuK.png',
                    'https://i.imgur.com/KJH6Bzb.png', 'https://i.imgur.com/qYsc0Ww.png'],
     'city_kill': ['https://i.imgur.com/86Jdiv3.png'],
-    'briefing': ['https://i.imgur.com/MriXBpV.png', 'https://i.imgur.com/mjD4F8O.png'],
+    'briefing': ['https://i.imgur.com/MriXBpV.png', 'https://i.imgur.com/mjD4F8O.png',
+                 'https://i.imgur.com/FSNN3rR.png'],
     'doctor': 'https://i.imgur.com/51951Mr.png',
     'mafia': 'https://i.imgur.com/zBAGbrF.png',
     'detective': 'https://i.imgur.com/rNbzpFr.png',
