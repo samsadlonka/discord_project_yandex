@@ -1,1 +1,4 @@
-discord dotenv logging math random enum collactions asyncio
+discord==1.0.1
+discord.py==1.7.1
+python-dotenv==0.14.0
+

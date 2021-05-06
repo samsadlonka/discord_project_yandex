@@ -101,13 +101,15 @@ class Game:
 
     async def on_voice_state_update(self, member, before, after):
         if not after.channel:
-            if member in self.players:
-                self.players.remove(member)
+            # if member in self.players:
+            #     self.players.remove(member)
+            # if self.state == State.START:
+            #     pass
             await self.leave_game(member)
         elif before.channel and before.channel.id != self.voice_waiting_channel_id and \
                 before.channel.id != after.channel.id:
-            if member in self.players:
-                self.players.remove(member)
+            # if member in self.players:
+            #     self.players.remove(member)
             await self.leave_game(member)
 
     async def on_reaction_add(self, reaction, user):
@@ -725,11 +727,11 @@ class Game:
                 await asyncio.sleep(30)
                 await self.return_member_to_waiting(player)
 
-        # win = self.check_win_conditions()
-        # if win:
-        #     await self.end_game()
-        # else:
-        #     await self.test_round_continue()
+        win = self.check_win_conditions()
+        if win:
+            await self.end_game()
+        else:
+            await self.test_round_continue()
 
     # Game Flow
     async def start_game(self):
